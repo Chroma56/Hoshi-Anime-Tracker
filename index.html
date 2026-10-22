@@ -26,9 +26,9 @@ h2{font:800 24px "Bricolage Grotesque",sans-serif;margin:36px 0 2px}
 .poster:hover{outline:2px solid var(--accent)}
 .card h3{font-size:13px;font-weight:700;margin:8px 0 2px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .card p{margin:0;color:var(--mute);font-size:12px}
-.ranked .card{position:relative;margin-left:34px;width:140px}
-.ranked .num{position:absolute;left:-40px;bottom:36px;font:800 96px/0.8 "Bricolage Grotesque",sans-serif;color:#1d1d20;letter-spacing:-6px;pointer-events:none}
-.ranked .card>*{position:relative}
+.ranked .card{position:relative;margin-left:48px;width:140px}
+.ranked .num{position:absolute;left:-46px;bottom:36px;font:800 96px/0.8 "Bricolage Grotesque",sans-serif;color:#1d1d20;letter-spacing:-6px;pointer-events:none}
+.ranked .card>h3,.ranked .card>p{position:relative}
 .badge{position:absolute;left:8px;bottom:8px;background:rgba(10,8,20,.75);border-radius:5px;padding:2px 6px;font:700 11px "DM Sans",sans-serif}
 .tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px}
 .tabs button{background:none;border:1px solid var(--line);color:var(--mute);border-radius:999px;padding:6px 14px;font:inherit;cursor:pointer}
@@ -116,7 +116,7 @@ el.appendChild(p);el.appendChild(t);el.appendChild(m);return el}
 function fill(id,list,ranked){var r=document.getElementById(id);r.innerHTML="";list.forEach(function(a,i){r.appendChild(card(a,ranked?i+1:0))})}
 function render(){
 fill("trending",data.slice(0,8),true);
-fill("season",data.slice(5,13));
+fill("season",window.__s||data.slice(5,13));
 pick(window.__g||"Action")}
 function pick(g){window.__g=g;
 var tabs=document.getElementById("tabs");tabs.innerHTML="";
@@ -129,7 +129,7 @@ fetch("https://graphql.anilist.co",{method:"POST",headers:{"Content-Type":"appli
 .then(function(r){return r.json()}).then(function(j){
 var m=j.data.Page.media;if(!m.length)return;
 data=m.map(function(x){return{title:x.title.english||x.title.romaji,meta:(x.format||"")+" · "+(x.seasonYear||"")+" · "+((x.averageScore||0)/10).toFixed(1),ep:x.episodes?x.episodes+" eps":"Airing",genres:x.genres,id:x.id,img:x.coverImage.large}});
-document.getElementById("note").style.display="none";LIVE=true;render()}).catch(function(){});
+document.getElementById("note").style.display="none";LIVE=true;render();gq("query{Page(perPage:12){media(type:ANIME,season:FALL,seasonYear:2026,sort:POPULARITY_DESC){id title{english romaji}coverImage{large}genres format seasonYear averageScore episodes}}}").then(function(j){window.__s=j.data.Page.media.map(function(x){return{id:x.id,title:x.title.english||x.title.romaji,meta:(x.format||"")+" \u00b7 "+(x.seasonYear||"")+" \u00b7 "+((x.averageScore||0)/10).toFixed(1),ep:x.episodes?x.episodes+" eps":"Airing",genres:x.genres,img:x.coverImage.large}});fill("season",window.__s)}).catch(function(){})}).catch(function(){});
 var LIVE=false,tok=0,timer=0;
 var F={sort:"TRENDING_DESC",format:"",season:"",year:"",status:"",genres:[]};
 var yrs=[["","Any year"]];for(var y=2026;y>=2000;y--)yrs.push([String(y),String(y)]);
