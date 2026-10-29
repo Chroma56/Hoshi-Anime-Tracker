@@ -1,0 +1,232 @@
+<script>
+var API_BASE = "https://anikotoapi.site";
+
+var SAMPLE=[
+["Cyberpunk: Edgerunners 2","ONA · 2026 · 8.5","E4",["Action","Sci-Fi"],1],
+["The Exiled Heavy Knight","TV · 2026 · 6.8","E18",["Action","Fantasy"],2],
+["The Ramparts of Ice Season 2","TV · 2026 · 8.1","E5",["Drama","Romance"],3],
+["The Iceblade Sorcerer","TV · 2026 · 6.7","E4",["Action","Fantasy"],4],
+["ONE PIECE","TV · 1999 · 8.7","E1181",["Action","Adventure"],5],
+["Black Clover Season 2","TV · 2026 · 8.7","E4",["Action","Fantasy"],6],
+["Reincarnated as a Sword S2","ONA · 2026 · 7.5","E5",["Fantasy","Adventure"],7],
+["The Apothecary Diaries S3","TV · 2026 · 8.5","E4",["Drama","Mystery"],8],
+["Blue Box Season 2","TV · 2026 · 8.1","E4",["Romance","Sports"],9],
+["Overgeared","ONA · 2026 · 7.6","E5",["Fantasy","Adventure"],10],
+["STEEL BALL RUN","ONA · 2026 · 8.6","E5",["Adventure","Action"],11],
+["Firefly Wedding","TV · 2026 · 7.5","E3",["Romance","Drama"],12],
+["Even the Student Council Has Its Holes!","TV · 2026 · 7.3","E4",["Comedy","Slice of Life"],13]
+];
+var GENRES=["Action","Adventure","Comedy","Drama","Fantasy","Romance","Sci-Fi","Slice of Life","Mystery","Sports"];
+var data=SAMPLE.map(function(x){return{title:x[0],meta:x[1],ep:x[2],genres:x[3],id:x[4],img:null}});
+
+function hue(s){var h=0;for(var i=0;i<s.length;i++)h=(h*31+s.charCodeAt(i))%360;return h}
+function card(a,rank){
+var bg="";
+var el=document.createElement("a");el.href="#title";el.onclick=function(e){e.preventDefault();openTitle(a)};el.className="card";
+if(rank){var n=document.createElement("span");n.className="num";n.textContent=rank;el.appendChild(n)}
+var p=document.createElement("div");p.className="poster";p.style.cssText=bg;
+if(a.img){var im=new Image();im.loading="lazy";im.decoding="async";im.alt="";im.src=a.img;p.appendChild(im)}else p.textContent=a.title.split(" ").slice(0,3).join(" ");
+if(a.ep){var b=document.createElement("span");b.className="badge";b.textContent=a.ep;p.appendChild(b)}
+var t=document.createElement("h3");t.textContent=a.title;
+var m=document.createElement("p");m.textContent=a.meta;
+el.appendChild(p);el.appendChild(t);el.appendChild(m);return el}
+
+function fill(id,list,ranked){var r=document.getElementById(id);r.innerHTML="";list.forEach(function(a,i){r.appendChild(card(a,ranked?i+1:0))})}
+function render(){
+fill("trending",data.slice(0,8),true);
+fill("season",window.__s||data.slice(5,13));
+pick(window.__g||"Action")}
+function pick(g){window.__g=g;
+var tabs=document.getElementById("tabs");tabs.innerHTML="";
+GENRES.forEach(function(x){var b=document.createElement("button");b.textContent=x;if(x===g)b.className="on";b.onclick=function(){pick(x)};tabs.appendChild(b)});
+var l=data.filter(function(a){return a.genres.indexOf(g)>-1});
+fill("genre",l.length?l:data.slice(0,5))}
+render();
+
+document.getElementById("note").textContent="Fetching full episodes from anikotoapi.site...";
+
+function fetchApi(url) {
+  return fetch(url, {
+    method: "GET",
+    headers: { "Accept": "application/json" }
+  }).then(function(r){ return r.json(); });
+}
+
+// Fetching recent anime with pagination parameters
+fetchApi(API_BASE + "/recent-anime?page=1&per_page=30")
+.then(function(res){
+  var m = Array.isArray(res) ? res : (res.data || res.results || []);
+  if(!m.length)return;
+  data=m.map(function(x){return{
+    title: x.title || x.name,
+    meta: (x.format||"TV")+" · "+(x.year||"2026")+" · "+(x.score||"8.0"),
+    ep: x.episodes ? x.episodes+" eps" : "Airing",
+    genres: x.genres || ["Action"],
+    id: x.id || 1,
+    img: x.image || x.coverImage
+  }});
+  document.getElementById("note").style.display="none";
+  LIVE=true;
+  render();
+}).catch(function(){});
+
+var LIVE=false,tok=0,timer=0;
+var F={sort:"TRENDING_DESC",format:"",season:"",year:"",status:"",genres:[]};
+var yrs=[["","Any year"]];for(var y=2026;y>=2000;y--)yrs.push([String(y),String(y)]);
+var OPTS={sort:[["TRENDING_DESC","Trending"],["POPULARITY_DESC","Popular"],["SCORE_DESC","Top rated"],["START_DATE_DESC","Newest"]],format:[["","Any format"],["TV","TV"],["MOVIE","Movie"],["ONA","ONA"],["OVA","OVA"]],season:[["","Any season"],["WINTER","Winter"],["SPRING","Spring"],["SUMMER","Summer"],["FALL","Fall"]],year:yrs,status:[["","Any status"],["RELEASING","Airing"],["FINISHED","Finished"],["NOT_YET_RELEASED","Upcoming"]]};
+function Q(){return document.getElementById("q").value.trim()}
+Object.keys(OPTS).forEach(function(k){var s=document.createElement("select");s.setAttribute("aria-label",k);OPTS[k].forEach(function(o){var op=document.createElement("option");op.value=o[0];op.textContent=o[1];s.appendChild(op)});s.onchange=function(){F[k]=s.value;run()};document.getElementById("filters").appendChild(s)});
+
+function chips(){var c=document.getElementById("gchips");c.innerHTML="";GENRES.forEach(function(g){var b=document.createElement("button");b.textContent=g;var i=F.genres.indexOf(g);if(i>-1)b.className="on";b.onclick=function(){if(i>-1)F.genres.splice(i,1);else F.genres.push(g);chips();run()};c.appendChild(b)})}
+chips();
+
+function local(){var q=Q().toLowerCase();var l=SAMPLE.map(function(x){var p=x[1].split(" · ");return{title:x[0],meta:x[1],ep:x[2],genres:x[3],id:x[4],img:null,fmt:p[0],year:p[1],score:+p[2],season:p[1]==="2026"?"FALL":"",status:"RELEASING"}}).filter(function(a){return(!q||a.title.toLowerCase().indexOf(q)>-1)&&(!F.format||a.fmt===F.format)&&(!F.season||a.season===F.season)&&(!F.year||a.year===F.year)&&(!F.status||a.status===F.status)&&(!F.genres.length||F.genres.some(function(g){return a.genres.indexOf(g)>-1}))});if(F.sort==="SCORE_DESC")l.sort(function(a,b){return b.score-a.score});if(F.sort==="START_DATE_DESC")l.sort(function(a,b){return b.year-a.year});return Promise.resolve(l)}
+
+function live(){
+  return fetchApi(API_BASE + "/recent-anime?page=1&per_page=30").then(function(res){
+    var list = Array.isArray(res) ? res : (res.data || res.results || []);
+    var q = Q().toLowerCase();
+    return list.map(function(x){return{
+      title: x.title || x.name,
+      meta: (x.format||"TV")+" · "+(x.year||"2026")+" · "+(x.score||"8.0"),
+      ep: x.episodes ? x.episodes+" eps" : "Airing",
+      genres: x.genres || ["Action"],
+      id: x.id || 1,
+      img: x.image || x.coverImage
+    }}).filter(function(a){
+      return !q || a.title.toLowerCase().indexOf(q) > -1;
+    });
+  }).catch(function(){ return local(); });
+}
+
+function draw(l){var g=document.getElementById("grid"),f=document.createDocumentFragment();l.forEach(function(a){f.appendChild(card(a,0))});g.innerHTML="";g.appendChild(f);document.getElementById("count").textContent=l.length?l.length+" titles"+(LIVE?"":" (sample data)"):"No titles match. Try removing a filter."}
+function run(){var t=++tok;(LIVE?live():local()).then(function(l){if(t===tok)draw(l)}).catch(function(){LIVE=false;local().then(draw)})}
+document.getElementById("q").addEventListener("input",function(){if(location.hash!=="#discover")location.hash="discover";clearTimeout(timer);timer=setTimeout(run,300)});
+
+var CUR=null,LIB={};
+try{LIB=JSON.parse(localStorage.getItem("hoshi-lib")||"{}")}catch(e){}
+function saveLib(){try{localStorage.setItem("hoshi-lib",JSON.stringify(LIB))}catch(e){}}
+function openTitle(a){CUR=a;location.hash="title"}
+function mk(t,c,x){var e=document.createElement(t);if(c)e.className=c;if(x)e.textContent=x;return e}
+
+function detail(a){
+var d=document.getElementById("detail");d.innerHTML="";
+var back=mk("button","back","\u2190 Back");back.onclick=function(){history.back()};d.appendChild(back);
+var wrap=mk("div","dwrap"),ph=mk("div","poster dposter");
+if(a.img){var im=new Image();im.alt="";im.decoding="async";im.src=a.img;ph.appendChild(im)}else ph.textContent=a.title;
+
+var playBtn=mk("button","play-btn");playBtn.type="button";playBtn.setAttribute("aria-label","Play first episode");
+var playIcon=mk("span","","\u25b6");playBtn.appendChild(playIcon);
+playBtn.className="play-btn show";
+
+playBtn.onclick=function(){
+  // Defaults to playing the first episode/stream if poster is clicked directly
+  if(a.firstEpUrl) openEpisodePlayer(a.firstEpUrl);
+  else openEpisodePlayer(API_BASE + "/series/" + (a.id || 1));
+};
+ph.appendChild(playBtn);
+
+var info=mk("div","dinfo");info.appendChild(mk("h1","",a.title));info.appendChild(mk("p","sub",a.meta+(a.ep?" \u00b7 "+a.ep:"")));
+var g=mk("div","tabs");(a.genres||[]).forEach(function(x){g.appendChild(mk("span","tag",x))});info.appendChild(g);
+var desc=mk("p","desc","Loading full episodes from anikotoapi.site...");info.appendChild(desc);
+
+var key=a.id||a.title,sel=mk("select");sel.setAttribute("aria-label","Library status");
+[["","Not in library"],["Watching","Watching or reading"],["Planning","Planning"],["Completed","Completed"],["Dropped","Dropped"]].forEach(function(o){var op=mk("option","",o[1]);op.value=o[0];sel.appendChild(op)});
+sel.value=(LIB[key]&&LIB[key].s)||"";sel.onchange=function(){if(sel.value)LIB[key]={s:sel.value,a:{title:a.title,meta:a.meta,ep:a.ep,genres:a.genres,img:a.img,id:a.id}};else delete LIB[key];saveLib()};info.appendChild(sel);
+
+info.appendChild(mk("h2","","Select Episode to Watch"));
+var wl=mk("div","wlist"),wn=mk("p","sub","Loading episodes...");wl.appendChild(wn);info.appendChild(wl);
+wrap.appendChild(ph);wrap.appendChild(info);d.appendChild(wrap);
+
+// Fetching full series data from: https://anikotoapi.site/series/{id}
+var seriesUrl = API_BASE + "/series/" + (a.id || 1);
+fetchApi(seriesUrl).then(function(res){
+  if(CUR!==a)return;
+  var m = res.data || res;
+  desc.textContent = m.description || m.synopsis || "No synopsis available.";
+  
+  wl.innerHTML="";
+  var episodes = m.episodes || m.streams || m.links || [];
+
+  if(episodes.length > 0) {
+    a.firstEpUrl = episodes[0].url || episodes[0].embedUrl || episodes[0].streamUrl;
+    episodes.forEach(function(ep, index){
+      var epNum = ep.number || ep.episode || (index + 1);
+      var btn = mk("a", "", "Episode " + epNum);
+      btn.href = "#";
+      btn.onclick = function(e){
+        e.preventDefault();
+        openEpisodePlayer(ep.url || ep.embedUrl || ep.streamUrl);
+      };
+      wl.appendChild(btn);
+    });
+  } else if (m.streamUrl || m.embedUrl) {
+    a.firstEpUrl = m.streamUrl || m.embedUrl;
+    var btn = mk("a", "", "Play Full Episode");
+    btn.href = "#";
+    btn.onclick = function(e){
+      e.preventDefault();
+      openEpisodePlayer(a.firstEpUrl);
+    };
+    wl.appendChild(btn);
+  } else {
+    wl.appendChild(mk("p","sub","No episode streams listed. You can test the series endpoint directly below:"));
+    var directBtn = mk("a", "", "Open Series Stream Endpoint");
+    directBtn.href = seriesUrl;
+    directBtn.target = "_blank";
+    wl.appendChild(directBtn);
+  }
+}).catch(function(){
+  desc.textContent = "Could not load episode list.";
+  wl.innerHTML = "";
+  var fallbackBtn = mk("a", "", "Play Series Feed");
+  fallbackBtn.href = "#";
+  fallbackBtn.onclick = function(e){
+    e.preventDefault();
+    openEpisodePlayer(API_BASE + "/series/" + (a.id || 1));
+  };
+  wl.appendChild(fallbackBtn);
+});
+}
+
+function openEpisodePlayer(url){
+  if(!url) return;
+  document.getElementById("playerFrame").src = url;
+  document.getElementById("playerOverlay").hidden = false;
+  document.body.style.overflow = "hidden";
+}
+
+function closeTrailer(){document.getElementById("playerFrame").src="";document.getElementById("playerOverlay").hidden=true;document.body.style.overflow=""}
+document.addEventListener("keydown",function(e){if(e.key==="Escape"&&!document.getElementById("playerOverlay").hidden)closeTrailer()});
+
+var LT="All";
+function drawLib(){var tabs=document.getElementById("libtabs");tabs.innerHTML="";var items=Object.keys(LIB).map(function(k){return LIB[k]}).filter(function(e){return e&&e.a});
+["All","Watching","Planning","Completed","Dropped"].forEach(function(s){var n=s==="All"?items.length:items.filter(function(e){return e.s===s}).length;var b=mk("button",s===LT?"on":"",s+" "+n);b.onclick=function(){LT=s;drawLib()};tabs.appendChild(b)});
+var l=items.filter(function(e){return LT==="All"||e.s===LT}),g=document.getElementById("libgrid"),f=document.createDocumentFragment();l.items=l;l.forEach(function(e){f.appendChild(card(e.a,0))});g.innerHTML="";g.appendChild(f);
+document.getElementById("libempty").textContent=l.length?"":"Nothing here yet. Open a title and choose a library status to save it."}
+
+var MANGA=[["The Extra's Academy Survival Guide","Manhwa · 2023 · 8.2",["Action","Fantasy"]],["SSS-Class Revival Hunter","Manhwa · 2020 · 8.3",["Action","Fantasy"]],["The Fragrant Flower Blooms With Dignity","Manga · 2021 · 8.6",["Romance","Slice of Life"]],["Smoking Behind the Supermarket with You","Manga · 2022 · 8.1",["Romance","Slice of Life"]],["Surviving the Game as a Barbarian","Manhwa · 2023 · 8.0",["Action","Adventure"]],["The Patron of Villains","Manhwa · 2025 · 7.8",["Fantasy","Romance"]],["Nano Machine","Manhwa · 2020 · 8.0",["Action","Fantasy"]],["Pick Me Up","Manhwa · 2022 · 8.4",["Action","Sci-Fi"]],["Haimiya Is Scary Cute","Manga · 2025 · 7.9",["Comedy","Romance"]],["The Stellar Swordmaster","Manhwa · 2023 · 8.2",["Action","Fantasy"]]];
+var mdone=false;
+function loadManga(){if(mdone)return;mdone=true;var s=MANGA.map(function(x){return{kind:"manga",title:x[0],meta:x[1],ep:"",genres:x[2],img:null}});
+fill("m-trend",s.slice(0,8),true);fill("m-manhwa",s.filter(function(m){return m.meta.indexOf("Manhwa")===0}));fill("m-manga",s.filter(function(m){return m.meta.indexOf("Manga")===0}));}
+
+var WOFF=0,SMODE="all",stok=0;
+function wstart(){var d=new Date();d.setHours(0,0,0,0);d.setDate(d.getDate()-((d.getDay()+6)%7)+WOFF*7);return d}
+function sampleWeek(ws){return SAMPLE.map(function(x,i){var t=new Date(ws);t.setDate(t.getDate()+i%7);t.setHours(8+(i*3)%14,(i%2)*30);return{at:t,ep:"Ep "+(i+3),a:{title:x[0],meta:x[1],ep:x[2],genres:x[3],id:x[4],img:null}}})}
+
+function drawWeek(ws,list){var w=document.getElementById("week"),f=document.createDocumentFragment(),today=new Date().toDateString(),n=0;
+if(SMODE==="lib")list=list.filter(function(e){var k=e.a.id||e.a.title;return LIB[k]&&LIB[k].a});
+for(var i=0;i<7;i++){var d=new Date(ws);d.setDate(d.getDate()+i);var col=mk("div","day"+(d.toDateString()===today?" today":"")),h=mk("h3","",d.toLocaleDateString(undefined,{weekday:"short"}));h.appendChild(mk("b","",String(d.getDate())));col.appendChild(h);
+list.filter(function(e){return e.at.toDateString()===d.toDateString()}).sort(function(a,b){return a.at-b.at}).forEach(function(e){n++;var l=mk("a","ep"),th;if(e.a.img){th=new Image();th.loading="lazy";th.decoding="async";th.alt="";th.src=e.a.img}else th=mk("div","th");l.appendChild(th);var t=mk("div");t.appendChild(mk("span","",e.at.toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"})));t.appendChild(mk("strong","",e.a.title));t.appendChild(mk("span","",e.ep));l.appendChild(t);l.href="#title";l.onclick=function(ev){ev.preventDefault();openTitle(e.a)};col.appendChild(l)});f.appendChild(col)}
+w.innerHTML="";w.appendChild(f);var e2=new Date(ws);e2.setDate(e2.getDate()+6);var o={day:"numeric",month:"short"};document.getElementById("srange").textContent=ws.toLocaleDateString(undefined,o)+" \u2013 "+e2.toLocaleDateString(undefined,o)+" \u00b7 times in your time zone \u00b7 "+n+" episodes"}
+
+function runSched(){var t=++stok,ws=wstart();Promise.resolve(sampleWeek(ws)).then(function(l){if(t===stok)drawWeek(ws,l)})}
+function sbtn(id,fn){document.getElementById(id).onclick=function(){fn();document.getElementById("s-all").className=SMODE==="all"?"on":"";document.getElementById("s-lib").className=SMODE==="lib"?"on":"";runSched()}}
+sbtn("s-all",function(){SMODE="all"});sbtn("s-lib",function(){SMODE="lib"});sbtn("s-prev",function(){WOFF--});sbtn("s-next",function(){WOFF++});sbtn("s-now",function(){WOFF=0});
+
+function route(){var h=location.hash;if(h==="#title"&&!CUR)h="";var V={"#discover":"discover","#title":"detail","#library":"library","#manga":"manga","#schedule":"schedule"},v=V[h]||"home";
+["home","discover","detail","library","manga","schedule"].forEach(function(n){document.getElementById(n).hidden=n!==v});
+["home","discover","library","manga","schedule"].forEach(function(n){document.getElementById("n-"+n).className=n===v?"on":""});
+if(v==="discover"&&!document.getElementById("grid").children.length)run();if(v==="detail")detail(CUR);if(v==="library")drawLib();if(v==="manga")loadManga();if(v==="schedule")runSched();window.scrollTo(0,0)}
+window.addEventListener("hashchange",route);route();
+</script>
