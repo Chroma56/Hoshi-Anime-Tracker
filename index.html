@@ -265,6 +265,7 @@ var SAMPLE = [
 var GENRES = ["Action", "Adventure", "Comedy", "Drama", "Fantasy", "Romance", "Sci-Fi", "Slice of Life", "Mystery", "Sports"];
 var data = SAMPLE;
 
+function rp(im, a) { if (a && a.type === "Manga") im.referrerPolicy = "no-referrer"; }
 function card(a, rank) {
   var el = document.createElement("a");
   el.href = "#title";
@@ -286,6 +287,7 @@ function card(a, rank) {
     im.loading = "lazy";
     im.decoding = "async";
     im.alt = "";
+    rp(im, a);
     im.src = a.img;
     p.appendChild(im);
   } else {
@@ -942,18 +944,22 @@ function saveRP() { try { localStorage.setItem("hoshi-read", JSON.stringify(RP))
 
 function mdChapters(mid) {
   if (MC[mid]) return Promise.resolve(MC[mid]);
-  return fetch(MD + "/manga/" + mid + "/aggregate?translatedLanguage[]=en").then(function(r) {
-    if (!r.ok) throw new Error("HTTP " + r.status);
-    return r.json();
-  }).then(function(res) {
-    var out = [], vols = res.volumes || {};
-    Object.keys(vols).forEach(function(v) {
-      var chs = vols[v].chapters || {};
-      Object.keys(chs).forEach(function(c) {
-        var n = parseFloat(c);
-        out.push({ num: c === "none" ? "Extra" : c, n: isNaN(n) ? 1e9 : n, id: chs[c].id });
+  var by = {};
+  function page(off) {
+    return fetch(MD + "/manga/" + mid + "/feed?translatedLanguage[]=en&includeExternalUrl=0&includeEmptyPages=0&order[chapter]=asc&limit=500&offset=" + off + MD_R)
+      .then(function(r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+      .then(function(res) {
+        (res.data || []).forEach(function(c) {
+          var at = c.attributes || {}, num = at.chapter == null ? "Extra" : String(at.chapter), n = parseFloat(num);
+          if (at.externalUrl || !(at.pages > 0)) return;
+          if (!by[num] || at.pages > by[num].pages) by[num] = { num: num, n: isNaN(n) ? 1e9 : n, id: c.id, pages: at.pages };
+        });
+        var nx = off + 500;
+        if (nx < (res.total || 0) && nx < 5000) return page(nx);
       });
-    });
+  }
+  return page(0).then(function() {
+    var out = Object.keys(by).map(function(k) { return by[k]; });
     out.sort(function(x, y) { return x.n - y.n; });
     return (MC[mid] = out);
   });
@@ -1005,18 +1011,18 @@ function openReader(a, chs, start, onProg) {
     body.innerHTML = ""; body.className = "rdrbody" + (mode === "page" ? " pg" : "");
     mb.textContent = mode === "page" ? "Scroll" : "Pages";
     if (mode === "scroll") {
-      pages.forEach(function(src) { var im = new Image(); im.loading = "lazy"; im.decoding = "async"; im.alt = ""; im.src = src; body.appendChild(im); });
+      pages.forEach(function(src) { var im = new Image(); im.loading = "lazy"; im.decoding = "async"; im.alt = ""; im.referrerPolicy = "no-referrer"; im.src = src; body.appendChild(im); });
       var nb = mk("button", "vbtn pri", idx < chs.length - 1 ? "Next chapter" : "You're all caught up");
       nb.type = "button"; nb.disabled = idx >= chs.length - 1; nb.onclick = function() { load(idx + 1); };
       body.appendChild(nb); body.scrollTop = 0; cnt.textContent = pages.length + " pages";
     } else {
-      var im2 = new Image(); im2.alt = ""; im2.src = pages[pg];
+      var im2 = new Image(); im2.alt = ""; im2.referrerPolicy = "no-referrer"; im2.src = pages[pg];
       im2.onclick = function(e) {
         var right = e.clientX > im2.getBoundingClientRect().left + im2.width / 2;
         step(right !== rtl ? 1 : -1);
       };
       body.appendChild(im2); cnt.textContent = (pg + 1) + " / " + pages.length;
-      if (pages[pg + 1]) new Image().src = pages[pg + 1];
+      if (pages[pg + 1]) { var pf = new Image(); pf.referrerPolicy = "no-referrer"; pf.src = pages[pg + 1]; }
     }
   }
   function step(d) {
@@ -1050,7 +1056,7 @@ function mangaDetail(a) {
   var back = mk("button", "back", "\u2190 Back"); back.onclick = function() { history.back(); }; root.appendChild(back);
 
   var head = mk("div", "vhead"), pw = mk("div", "vposter"), ph = mk("div", "poster");
-  if (a.img) { var im = new Image(); im.alt = ""; im.decoding = "async"; im.src = a.img.replace(".256.jpg", ".512.jpg"); ph.appendChild(im); }
+  if (a.img) { var im = new Image(); im.alt = ""; im.decoding = "async"; im.referrerPolicy = "no-referrer"; im.src = a.img.replace(".256.jpg", ".512.jpg"); ph.appendChild(im); }
   else ph.textContent = a.title;
   pw.appendChild(ph);
 
@@ -1121,7 +1127,7 @@ function mangaDetail(a) {
   mdChapters(a.id.slice(3)).then(function(res) {
     if (CUR !== a) return;
     chs = res; cnt.textContent = chs.length;
-    if (!chs.length) { readBtn.textContent = "No English chapters"; list.appendChild(mk("p", "sub", "MangaDex has no English chapters for this title.")); return; }
+    if (!chs.length) { readBtn.textContent = "No readable chapters"; list.appendChild(mk("p", "sub", "MangaDex has no readable English chapters for this title (they may be hosted off-site).")); return; }
     readBtn.disabled = false; setBtn();
     if (chs.length > 60) rng = Math.floor(startIdx / PAGE);
     drawRanges(); draw();
@@ -1148,7 +1154,7 @@ function drawCR() {
   keys.forEach(function(k) {
     var p = RP[k], a = p.a, c = mk("div", "card cwc"), ph = mk("div", "poster");
     c.tabIndex = 0; c.setAttribute("role", "link");
-    if (a.img) { var im = new Image(); im.loading = "lazy"; im.decoding = "async"; im.alt = ""; im.src = a.img; ph.appendChild(im); }
+    if (a.img) { var im = new Image(); im.loading = "lazy"; im.decoding = "async"; im.alt = ""; im.referrerPolicy = "no-referrer"; im.src = a.img; ph.appendChild(im); }
     else ph.textContent = a.title.split(" ").slice(0, 3).join(" ");
     ph.appendChild(mk("span", "badge", "Ch " + p.l));
     var seen = Object.keys(p.s || {}).length, total = p.n || 0;
@@ -1190,7 +1196,7 @@ function dcard(a) {
   el.href = "#title"; el.className = "dc";
   el.onclick = function(e) { e.preventDefault(); openTitle(a); };
   var p = mk("div", "poster");
-  if (a.img) { var im = new Image(); im.loading = "lazy"; im.decoding = "async"; im.alt = ""; im.src = a.img; p.appendChild(im); }
+  if (a.img) { var im = new Image(); im.loading = "lazy"; im.decoding = "async"; im.alt = ""; rp(im, a); im.src = a.img; p.appendChild(im); }
   else p.textContent = a.title.split(" ").slice(0, 3).join(" ");
   p.appendChild(mk("span", "dtype", a.type || "TV"));
   el.appendChild(p); el.appendChild(mk("h3", "", a.title)); el.appendChild(mk("p", "", a.sub || ""));
