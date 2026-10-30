@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Hoshi – Anime and manga tracker</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@600;800&family=DM+Sans:wght@400;500;700&display=swap">
+<style>
+:root{color-scheme:dark;--bg:#0b0b0c;--panel:#101012;--line:#222226;--text:#f2f2f3;--mute:#8b8b92;--accent:#ffffff;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+*,*::before,*::after{box-sizing:inherit}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--text);font:400 15px/1.4 "DM Sans",system-ui,sans-serif;display:flex;min-height:100vh}
+nav{width:72px;background:var(--panel);border-right:1px solid var(--line);display:flex;flex-direction:column;align-items:center;gap:6px;padding:16px 0;position:sticky;top:0;height:100vh;flex:none}
+.logo{font:800 22px "Bricolage Grotesque",sans-serif;color:var(--accent);margin-bottom:14px}
+nav a{width:56px;padding:8px 0;border-radius:10px;color:var(--mute);text-align:center;font-size:11px;text-decoration:none}
+nav a.on,nav a:hover{background:var(--line);color:var(--text)}
+nav a b{display:block;font-size:18px;font-weight:400}
+main{flex:1;min-width:0;padding:20px 28px 60px}
+.search{display:block;width:100%;max-width:440px;padding:10px 14px;border-radius:10px;border:1px solid var(--line);background:var(--panel);color:var(--text);font:inherit}
+.search:focus-visible,a:focus-visible,button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+h2{font:800 24px "Bricolage Grotesque",sans-serif;margin:36px 0 2px}
+.sub{color:var(--mute);margin:0 0 14px;font-size:13px}
+.row{display:flex;gap:16px;overflow-x:auto;padding-bottom:10px;scrollbar-width:thin}
+.card{flex:none;width:150px;text-decoration:none;color:inherit}
+.poster{aspect-ratio:2/3;border-radius:8px;position:relative;overflow:hidden;display:flex;align-items:flex-end;padding:10px;font:800 15px/1.1 "Bricolage Grotesque",sans-serif;background:#18181b}.poster img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.poster:hover{outline:2px solid var(--accent)}
+.card h3{font-size:13px;font-weight:700;margin:8px 0 2px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.card p{margin:0;color:var(--mute);font-size:12px}
+.ranked .card{position:relative;margin-left:48px;width:140px}
+.ranked .num{position:absolute;left:-46px;bottom:36px;font:800 96px/0.8 "Bricolage Grotesque",sans-serif;color:#1d1d20;letter-spacing:-6px;pointer-events:none}
+.ranked .card>h3,.ranked .card>p{position:relative}
+.badge{position:absolute;left:8px;bottom:8px;background:rgba(10,8,20,.75);border-radius:5px;padding:2px 6px;font:700 11px "DM Sans",sans-serif}
+.tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px}
+.tabs button{background:none;border:1px solid var(--line);color:var(--mute);border-radius:999px;padding:6px 14px;font:inherit;cursor:pointer}
+.tabs button.on{background:var(--accent);border-color:var(--accent);color:#0b0b0c;font-weight:700}
+.note{margin-top:40px;padding:12px 14px;border:1px dashed var(--line);border-radius:10px;color:var(--mute);font-size:13px}
+.row{contain:content;overscroll-behavior-x:contain;scroll-snap-type:x proximity;content-visibility:auto;contain-intrinsic-size:auto 290px}.card{scroll-snap-align:start}
+.filters{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px}.filters select{background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:10px;padding:9px 12px;font:inherit}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:22px 16px}.grid .card{width:auto;content-visibility:auto;contain-intrinsic-size:auto 290px}
+.back{background:none;border:0;color:var(--mute);font:inherit;cursor:pointer;padding:0;margin:4px 0 18px}.back:hover{color:var(--text)}
+.dwrap{display:flex;gap:28px;flex-wrap:wrap}.dposter{width:220px;flex:none;position:relative}
+.play-btn{position:absolute;inset:0;display:none;align-items:center;justify-content:center;background:linear-gradient(to top,rgba(0,0,0,.6),rgba(0,0,0,0) 55%);border:0;cursor:pointer;padding:0}
+.play-btn.show{display:flex}
+.play-btn span{width:52px;height:52px;border-radius:50%;background:rgba(255,255,255,.92);color:#0b0b0c;display:flex;align-items:center;justify-content:center;font-size:18px}
+.player-overlay{position:fixed;inset:0;background:rgba(6,6,9,.9);display:flex;align-items:center;justify-content:center;z-index:1000;padding:24px}
+.player-overlay[hidden]{display:none}
+.player-box{width:min(960px,100%);background:var(--panel);border:1px solid var(--line);border-radius:10px;overflow:hidden;position:relative}
+.player-close{position:absolute;top:10px;right:10px;z-index:2;width:34px;height:34px;border-radius:50%;border:0;background:rgba(16,16,18,.85);color:var(--text);font-size:20px;line-height:1;cursor:pointer}
+.player-close:hover{background:var(--line)}
+.player-stage{background:#000;aspect-ratio:16/9}
+.player-stage iframe{width:100%;height:100%;border:0;display:block}
+.dinfo{flex:1;min-width:260px;max-width:640px}.dinfo h1{font:800 34px/1.1 "Bricolage Grotesque",sans-serif;margin:0 0 6px}
+.tag{border:1px solid var(--line);border-radius:999px;padding:4px 12px;color:var(--mute);font-size:13px}
+.desc{white-space:pre-line;color:#cfcfd4;max-width:70ch;margin:16px 0}
+.dinfo select{background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:10px;padding:10px 14px;font:inherit}
+.dinfo h2{font-size:18px;margin:28px 0 10px}.wlist a{display:inline-block;margin:0 8px 8px 0;padding:8px 14px;border:1px solid var(--line);border-radius:10px;color:var(--text);text-decoration:none}.wlist a:hover{background:var(--line)}
+.shead{display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:12px}.shead h2{margin-top:20px}
+.sctl{display:flex;gap:6px;flex-wrap:wrap}.sctl button{background:var(--panel);color:var(--mute);border:1px solid var(--line);border-radius:10px;padding:8px 12px;font:inherit;cursor:pointer}.sctl button.on{color:var(--text);background:var(--line)}
+.week{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:12px;margin-top:8px}
+.day{border-top:1px solid var(--line);padding-top:10px;min-width:0}.day h3{margin:0 0 12px;font-size:13px;color:var(--mute);font-weight:500}.day h3 b{color:var(--text);font-size:20px;margin-left:4px}.day.today h3 b{border-bottom:2px solid var(--text)}
+.ep{display:flex;gap:8px;margin-bottom:12px;color:inherit;text-decoration:none;content-visibility:auto;contain-intrinsic-size:auto 56px}.ep img,.ep .th{width:36px;height:52px;border-radius:5px;object-fit:cover;background:#18181b;flex:none}.ep span{display:block;font-size:12px;color:var(--mute)}.ep strong{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;font-size:13px;font-weight:500}
+@media(max-width:1000px){.week{grid-template-columns:1fr}}
+@media(max-width:640px){.dposter{width:150px}.dinfo h1{font-size:26px}}
+@media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important}}
+@media(max-width:640px){nav{width:56px}nav a{width:46px;font-size:10px}main{padding:16px 14px 60px}.card{width:128px}}
+</style>
+</head>
+<body>
+<nav aria-label="Main">
+<div class="logo">H</div>
+<a href="#home" id="n-home" class="on"><b>▶</b>Anime</a>
+<a href="#manga" id="n-manga"><b>▤</b>Manga</a>
+<a href="#discover" id="n-discover"><b>◫</b>Discover</a>
+<a href="#schedule" id="n-schedule"><b>▦</b>Schedule</a>
+<a href="#library" id="n-library"><b>♥</b>Library</a>
+</nav>
+<main>
+<input id="q" class="search" type="search" placeholder="Search anime and manga" aria-label="Search anime and manga">
+<div id="home"><h2>Trending now</h2>
+<p class="sub">Most active this week</p>
+<div class="row ranked" id="trending"></div>
+<h2>Fall 2026</h2>
+<p class="sub">Popular shows airing this season</p>
+<div class="row" id="season"></div>
+<h2>Trending by genre</h2>
+<p class="sub">Pick a genre</p>
+<div class="tabs" id="tabs"></div>
+<div class="row" id="genre"></div>
+<div class="note" id="note"></div></div>
+<div id="discover" hidden><h2>Discover</h2><p class="sub">Filter by genre, format, season, year and status. Use the search bar to find a title.</p>
+<div class="filters" id="filters"></div><div class="tabs" id="gchips"></div><p class="sub" id="count" aria-live="polite"></p><div class="grid" id="grid"></div></div>
+<div id="detail" hidden></div>
+<div id="library" hidden><h2>Library</h2><p class="sub">Titles you saved. Saved in this browser for now.</p><div class="tabs" id="libtabs"></div><p class="sub" id="libempty"></p><div class="grid" id="libgrid"></div></div>
+<div id="manga" hidden><h2>Manga</h2><p class="sub">What readers are picking up this week</p><div class="row ranked" id="m-trend"></div><h2>Manhwa</h2><p class="sub">Korean webtoons, read top to bottom</p><div class="row" id="m-manhwa"></div><h2>Manga</h2><p class="sub">Japanese series</p><div class="row" id="m-manga"></div></div>
+<div id="schedule" hidden><div class="shead"><div><h2>Schedule</h2><p class="sub" id="srange"></p></div><div class="sctl"><button id="s-all" class="on">Everything airing</button><button id="s-lib">My library</button><button id="s-prev" aria-label="Previous week">‹</button><button id="s-now">This week</button><button id="s-next" aria-label="Next week">›</button></div></div><div class="week" id="week"></div></div>
+</main>
+<div id="playerOverlay" class="player-overlay" hidden>
+<div class="player-box">
+<button class="player-close" aria-label="Close player" onclick="closeTrailer()">&times;</button>
+<div class="player-stage"><iframe id="playerFrame" title="Trailer" allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen></iframe></div>
+</div>
+</div>
+<script>
+var API_BASE = "https://anime-proxy.tasinsadman302.workers.dev";
+
+var SAMPLE = [
+  { id: 9044, title: "The Iceblade Sorcerer II", meta: "TV · 2026 · 6.7", ep: "12 eps", genres: ["Action", "Fantasy"], img: "https://cdn.anipixcdn.co/thumbnail/20346dad019e8ccda67ad24ebee17d3c.jpg" },
+  { id: 8903, title: "The Exiled Heavy Knight", meta: "TV · 2026 · 7.1", ep: "26 eps", genres: ["Action", "Fantasy"], img: "https://cdn.anipixcdn.co/thumbnail/81d8f6bc61e91eeecbb1e08f767c475a.jpg" },
+  { id: 9036, title: "The Ramparts of Ice Season 2", meta: "TV · 2026 · 8.4", ep: "Airing", genres: ["Drama", "Romance"], img: "https://cdn.anipixcdn.co/thumbnail/b6ae71493beee188609a8cceeb22e5f1.jpg" }
+];
+
+var GENRES = ["Action", "Adventure", "Comedy", "Drama", "Fantasy", "Romance", "Sci-Fi", "Slice of Life", "Mystery", "Sports"];
+var data = SAMPLE;
+
+function card(a, rank) {
+  var el = document.createElement("a");
+  el.href = "#title";
+  el.onclick = function(e) { e.preventDefault(); openTitle(a); };
+  el.className = "card";
+
+  if (rank) {
+    var n = document.createElement("span");
+    n.className = "num";
+    n.textContent = rank;
+    el.appendChild(n);
+  }
+
+  var p = document.createElement("div");
+  p.className = "poster";
+
+  if (a.img) {
+    var im = new Image();
+    im.loading = "lazy";
+    im.decoding = "async";
+    im.alt = "";
+    im.src = a.img;
+    p.appendChild(im);
+  } else {
+    p.textContent = a.title.split(" ").slice(0, 3).join(" ");
+  }
+
+  if (a.ep) {
+    var b = document.createElement("span");
+    b.className = "badge";
+    b.textContent = a.ep;
+    p.appendChild(b);
+  }
+
+  var t = document.createElement("h3");
+  t.textContent = a.title;
+  var m = document.createElement("p");
+  m.textContent = a.meta;
+
+  el.appendChild(p);
+  el.appendChild(t);
+  el.appendChild(m);
+  return el;
+}
+
+function fill(id, list, ranked) {
+  var r = document.getElementById(id);
+  if (!r) return;
+  r.innerHTML = "";
+  list.forEach(function(a, i) { r.appendChild(card(a, ranked ? i + 1 : 0)); });
+}
+
+function render() {
+  fill("trending", data.slice(0, 8), true);
+  fill("season", window.__s || data.slice(0, 10));
+  pick(window.__g || "Action");
+}
+
+function pick(g) {
+  window.__g = g;
+  var tabs = document.getElementById("tabs");
+  if (!tabs) return;
+  tabs.innerHTML = "";
+  GENRES.forEach(function(x) {
+    var b = document.createElement("button");
+    b.textContent = x;
+    if (x === g) b.className = "on";
+    b.onclick = function() { pick(x); };
+    tabs.appendChild(b);
+  });
+  var l = data.filter(function(a) { return a.genres.indexOf(g) > -1; });
+  fill("genre", l.length ? l : data.slice(0, 5));
+}
+
+function fetchApi(url) {
+  return fetch(url, { method: "GET", headers: { "Accept": "application/json" } })
+    .then(function(r) {
+      if (!r.ok) throw new Error("HTTP " + r.status);
+      return r.json();
+    });
+}
+
+// Mapper for Anikoto API schema
+function parseAnikotoList(res) {
+  var rawData = Array.isArray(res) ? res : (res.data || res.results || []);
+  return rawData.map(function(x) {
+    var genres = (x.terms_by_type && x.terms_by_type.genre) ? x.terms_by_type.genre : (x.genres || ["Action"]);
+    var type = (x.terms_by_type && x.terms_by_type.type && x.terms_by_type.type[0]) || "TV";
+    return {
+      id: x.id,
+      title: x.title || x.name || "Untitled",
+      meta: type + " · " + (x.year || "2026") + " · " + (x.score || "N/A"),
+      ep: x.episodes ? (x.episodes + " eps") : "Airing",
+      genres: genres,
+      img: x.poster || x.image || x.coverImage,
+      description: x.description || ""
+    };
+  });
+}
+
+// Fetch recent anime from API
+fetchApi(API_BASE + "/recent-anime?page=1&per_page=30")
+  .then(function(res) {
+    var parsed = parseAnikotoList(res);
+    if (!parsed.length) { render(); return; }
+    data = parsed;
+    var note = document.getElementById("note");
+    if (note) note.style.display = "none";
+    LIVE = true;
+    render();
+  })
+  .catch(function(err) { console.error("recent-anime failed:", err); render(); });
+
+var LIVE = false, tok = 0, timer = 0;
+var F = { sort: "TRENDING_DESC", format: "", season: "", year: "", status: "", genres: [] };
+
+function Q() { return document.getElementById("q") ? document.getElementById("q").value.trim() : ""; }
+
+function local() {
+  var q = Q().toLowerCase();
+  var l = data.filter(function(a) { return !q || a.title.toLowerCase().indexOf(q) > -1; });
+  return Promise.resolve(l);
+}
+
+function live() {
+  return fetchApi(API_BASE + "/recent-anime?page=1&per_page=30")
+    .then(function(res) {
+      var list = parseAnikotoList(res);
+      var q = Q().toLowerCase();
+      return list.filter(function(a) { return !q || a.title.toLowerCase().indexOf(q) > -1; });
+    })
+    .catch(function() { return local(); });
+}
+
+function draw(l) {
+  var g = document.getElementById("grid");
+  if (!g) return;
+  var f = document.createDocumentFragment();
+  l.forEach(function(a) { f.appendChild(card(a, 0)); });
+  g.innerHTML = "";
+  g.appendChild(f);
+  var cnt = document.getElementById("count");
+  if (cnt) cnt.textContent = l.length ? l.length + " titles" : "No titles match.";
+}
+
+function run() {
+  var t = ++tok;
+  (LIVE ? live() : local()).then(function(l) { if (t === tok) draw(l); }).catch(function() { local().then(draw); });
+}
+
+var qEl = document.getElementById("q");
+if (qEl) {
+  qEl.addEventListener("input", function() {
+    if (location.hash !== "#discover") location.hash = "discover";
+    clearTimeout(timer);
+    timer = setTimeout(run, 300);
+  });
+}
+
+var CUR = null, LIB = {};
+try { LIB = JSON.parse(localStorage.getItem("hoshi-lib") || "{}"); } catch (e) {}
+function saveLib() { try { localStorage.setItem("hoshi-lib", JSON.stringify(LIB)); } catch (e) {} }
+
+function openTitle(a) { CUR = a; location.hash = "title"; }
+function mk(t, c, x) { var e = document.createElement(t); if (c) e.className = c; if (x) e.textContent = x; return e; }
+
+// Detail view and Episode Streaming integration
+function detail(a) {
+  if (!a) return;
+  var d = document.getElementById("detail");
+  if (!d) return;
+  d.innerHTML = "";
+
+  var back = mk("button", "back", "\u2190 Back");
+  back.onclick = function() { history.back(); };
+  d.appendChild(back);
+
+  var wrap = mk("div", "dwrap");
+  var ph = mk("div", "poster dposter");
+
+  if (a.img) {
+    var im = new Image();
+    im.alt = ""; im.decoding = "async"; im.src = a.img;
+    ph.appendChild(im);
+  } else {
+    ph.textContent = a.title;
+  }
+
+  var playBtn = mk("button", "play-btn show");
+  playBtn.type = "button";
+  playBtn.setAttribute("aria-label", "Play Episode 1");
+  playBtn.appendChild(mk("span", "", "\u25b6"));
+  ph.appendChild(playBtn);
+
+  var info = mk("div", "dinfo");
+  info.appendChild(mk("h1", "", a.title));
+  info.appendChild(mk("p", "sub", a.meta + (a.ep ? " \u00b7 " + a.ep : "")));
+
+  var g = mk("div", "tabs");
+  (a.genres || []).forEach(function(x) { g.appendChild(mk("span", "tag", x)); });
+  info.appendChild(g);
+
+  var desc = mk("p", "desc", a.description || "Loading series details...");
+  info.appendChild(desc);
+
+  // Sub/Dub Toggle Controls
+  var langWrap = mk("div", "sctl");
+  var subBtn = mk("button", "on", "Sub");
+  var dubBtn = mk("button", "", "Dub");
+  var currentLang = "sub";
+
+  langWrap.appendChild(subBtn);
+  langWrap.appendChild(dubBtn);
+  info.appendChild(langWrap);
+
+  info.appendChild(mk("h2", "", "Select Episode"));
+  var wl = mk("div", "wlist");
+  info.appendChild(wl);
+
+  wrap.appendChild(ph);
+  wrap.appendChild(info);
+  d.appendChild(wrap);
+
+  // Fetch full episode array using series database ID
+  playBtn.onclick = function() { alert("Episodes haven't loaded yet, so there is nothing to play. Check the message under the title."); };
+  var targetId = a.id || 9044;
+  var seriesUrl = API_BASE + "/series/" + targetId;
+
+  fetchApi(seriesUrl).then(function(res) {
+    if (CUR !== a) return;
+
+    // Real shape: { ok, data: { anime: {...}, episodes: [...] } }
+    var payload = (res && res.data && typeof res.data === "object") ? res.data : (res || {});
+    var meta = payload.anime || {};
+    var episodes = Array.isArray(payload) ? payload : (Array.isArray(payload.episodes) ? payload.episodes : []);
+
+    if (meta.description) desc.textContent = meta.description;
+    if (meta.poster && !a.img) { a.img = meta.poster; }
+
+    if (!episodes.length) {
+      desc.textContent = (meta.description || a.description || "") + "\n\nNo episode streams found for this series.";
+      return;
+    }
+
+    function streamFor(ep, lang) {
+      var e = ep && (ep.embed_url || ep.embed || ep.url || ep.streamUrl);
+      if (!e) return null;
+      if (typeof e === "string") return lang === "sub" ? e : null;
+      return e[lang] || null;
+    }
+    function hasLang(lang) { return episodes.some(function(ep) { return !!streamFor(ep, lang); }); }
+
+    var hasSub = hasLang("sub"), hasDub = hasLang("dub");
+    subBtn.disabled = !hasSub;
+    dubBtn.disabled = !hasDub;
+    if (!hasSub && hasDub) { currentLang = "dub"; subBtn.className = ""; dubBtn.className = "on"; }
+    if (!hasDub) dubBtn.title = "No dub available for this series";
+
+    function renderEpisodes() {
+      wl.innerHTML = "";
+      episodes.forEach(function(ep, index) {
+        var epNum = ep.number || ep.episode || ep.num || (index + 1);
+        var epTitle = ep.title ? (" - " + ep.title) : "";
+        var btn = mk("a", "", "Episode " + epNum + epTitle);
+        btn.href = "#";
+        var url = streamFor(ep, currentLang);
+        if (!url) { btn.style.opacity = ".4"; btn.title = "Not available in " + currentLang.toUpperCase(); }
+        btn.onclick = function(e) {
+          e.preventDefault();
+          var u = streamFor(ep, currentLang);
+          if (u) openEpisodePlayer(u);
+          else alert("No " + currentLang.toUpperCase() + " stream available for this episode.");
+        };
+        wl.appendChild(btn);
+      });
+    }
+
+    playBtn.onclick = function() {
+      var u = streamFor(episodes[0], currentLang);
+      if (u) openEpisodePlayer(u);
+      else alert("No " + currentLang.toUpperCase() + " stream for episode 1.");
+    };
+
+    subBtn.onclick = function() {
+      if (!hasSub) return;
+      currentLang = "sub"; subBtn.className = "on"; dubBtn.className = ""; renderEpisodes();
+    };
+    dubBtn.onclick = function() {
+      if (!hasDub) return;
+      currentLang = "dub"; dubBtn.className = "on"; subBtn.className = ""; renderEpisodes();
+    };
+
+    renderEpisodes();
+  }).catch(function(err) {
+    var why = (err && err.message) ? err.message : "unknown";
+    desc.textContent = "Unable to fetch episode list (" + why + "). \"Failed to fetch\" usually means the API blocks browser requests (CORS). See PROXY note: set API_BASE to your proxy URL.";
+    console.error("Series fetch failed:", seriesUrl, err);
+  });
+
+  // Save to library
+  var save = mk("button", "", LIB[a.id] ? "\u2665 In library" : "\u2661 Save");
+  save.style.cssText = "margin:12px 0 0;background:none;border:1px solid var(--line);color:var(--text);border-radius:10px;padding:8px 14px;font:inherit;cursor:pointer";
+  save.onclick = function() {
+    if (LIB[a.id]) { delete LIB[a.id]; save.textContent = "\u2661 Save"; }
+    else { LIB[a.id] = a; save.textContent = "\u2665 In library"; }
+    saveLib();
+  };
+  info.insertBefore(save, desc.nextSibling);
+}
+
+function openEpisodePlayer(url) {
+  if (!url) return;
+  var frame = document.getElementById("playerFrame");
+  var overlay = document.getElementById("playerOverlay");
+  if (frame && overlay) {
+    frame.src = url;
+    overlay.hidden = false;
+    document.body.style.overflow = "hidden";
+  }
+}
+
+function closeTrailer() {
+  var frame = document.getElementById("playerFrame");
+  var overlay = document.getElementById("playerOverlay");
+  if (frame) frame.src = "";
+  if (overlay) overlay.hidden = true;
+  document.body.style.overflow = "";
+}
+
+document.addEventListener("keydown", function(e) {
+  var overlay = document.getElementById("playerOverlay");
+  if (e.key === "Escape" && overlay && !overlay.hidden) closeTrailer();
+});
+
+function drawLib() {
+  var items = Object.keys(LIB).map(function(k) { return LIB[k]; });
+  var g = document.getElementById("libgrid"), e = document.getElementById("libempty");
+  if (!g) return;
+  g.innerHTML = "";
+  items.forEach(function(a) { g.appendChild(card(a, 0)); });
+  if (e) e.textContent = items.length ? items.length + " saved" : "Nothing saved yet. Open a title and press Save.";
+}
+
+function placeholder(v) {
+  var el = document.getElementById(v);
+  if (!el || el.getAttribute("data-ph")) return;
+  el.setAttribute("data-ph", "1");
+  el.innerHTML = "<h2>" + (v === "manga" ? "Manga" : "Schedule") + "</h2><p class=\"sub\">Not connected yet. The Anikoto API only provides anime.</p>";
+}
+
+function route() {
+  var h = location.hash;
+  if (h === "#title" && !CUR) h = "";
+  var V = { "#discover": "discover", "#title": "detail", "#library": "library", "#manga": "manga", "#schedule": "schedule" };
+  var v = V[h] || "home";
+
+  ["home", "discover", "detail", "library", "manga", "schedule"].forEach(function(n) {
+    var el = document.getElementById(n);
+    if (el) el.hidden = (n !== v);
+  });
+
+  if (v === "detail") detail(CUR);
+  if (v === "discover") run();
+  if (v === "library") drawLib();
+  if (v === "manga" || v === "schedule") placeholder(v);
+
+  ["home", "manga", "discover", "schedule", "library"].forEach(function(n) {
+    var l = document.getElementById("n-" + n);
+    if (l) l.className = (n === v) ? "on" : "";
+  });
+  window.scrollTo(0, 0);
+}
+
+window.addEventListener("hashchange", route);
+route();
+</script></body>
+</html>
