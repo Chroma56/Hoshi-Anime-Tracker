@@ -1,0 +1,625 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Hoshi – Anime and manga tracker</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@600;800&family=DM+Sans:wght@400;500;700&display=swap">
+<style>
+:root{color-scheme:dark;--bg:#0b0b0c;--panel:#101012;--line:#222226;--text:#f2f2f3;--mute:#8b8b92;--accent:#ffffff;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+*,*::before,*::after{box-sizing:inherit}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--text);font:400 15px/1.4 "DM Sans",system-ui,sans-serif;display:flex;min-height:100vh}
+nav{width:72px;background:var(--panel);border-right:1px solid var(--line);display:flex;flex-direction:column;align-items:center;gap:6px;padding:16px 0;position:sticky;top:0;height:100vh;flex:none}
+.logo{font:800 22px "Bricolage Grotesque",sans-serif;color:var(--accent);margin-bottom:14px}
+nav a{width:56px;padding:8px 0;border-radius:10px;color:var(--mute);text-align:center;font-size:11px;text-decoration:none}
+nav a.on,nav a:hover{background:var(--line);color:var(--text)}
+nav a b{display:block;font-size:18px;font-weight:400}
+main{flex:1;min-width:0;padding:20px 28px 60px}
+.search{display:block;width:100%;max-width:440px;padding:10px 14px;border-radius:10px;border:1px solid var(--line);background:var(--panel);color:var(--text);font:inherit}
+.search:focus-visible,a:focus-visible,button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+h2{font:800 24px "Bricolage Grotesque",sans-serif;margin:36px 0 2px}
+.sub{color:var(--mute);margin:0 0 14px;font-size:13px}
+.row{display:flex;gap:16px;overflow-x:auto;padding-bottom:10px;scrollbar-width:thin}
+.card{flex:none;width:150px;text-decoration:none;color:inherit}
+.poster{aspect-ratio:2/3;border-radius:8px;position:relative;overflow:hidden;display:flex;align-items:flex-end;padding:10px;font:800 15px/1.1 "Bricolage Grotesque",sans-serif;background:#18181b}.poster img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.poster:hover{outline:2px solid var(--accent)}
+.card h3{font-size:13px;font-weight:700;margin:8px 0 2px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.card p{margin:0;color:var(--mute);font-size:12px}
+.ranked .card{position:relative;margin-left:48px;width:140px}
+.ranked .num{position:absolute;left:-46px;bottom:36px;font:800 96px/0.8 "Bricolage Grotesque",sans-serif;color:#1d1d20;letter-spacing:-6px;pointer-events:none}
+.ranked .card>h3,.ranked .card>p{position:relative}
+.badge{position:absolute;left:8px;bottom:8px;background:rgba(10,8,20,.75);border-radius:5px;padding:2px 6px;font:700 11px "DM Sans",sans-serif}
+.tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px}
+.tabs button{background:none;border:1px solid var(--line);color:var(--mute);border-radius:999px;padding:6px 14px;font:inherit;cursor:pointer}
+.tabs button.on{background:var(--accent);border-color:var(--accent);color:#0b0b0c;font-weight:700}
+.note{margin-top:40px;padding:12px 14px;border:1px dashed var(--line);border-radius:10px;color:var(--mute);font-size:13px}
+.row{contain:content;overscroll-behavior-x:contain;scroll-snap-type:x proximity;content-visibility:auto;contain-intrinsic-size:auto 290px}.card{scroll-snap-align:start}
+.filters{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px}.filters select{background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:10px;padding:9px 12px;font:inherit}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:22px 16px}.grid .card{width:auto;content-visibility:auto;contain-intrinsic-size:auto 290px}
+.back{background:none;border:0;color:var(--mute);font:inherit;cursor:pointer;padding:0;margin:4px 0 18px}.back:hover{color:var(--text)}
+.dwrap{display:flex;gap:28px;flex-wrap:wrap}.dposter{width:220px;flex:none;position:relative}
+.play-btn{position:absolute;inset:0;display:none;align-items:center;justify-content:center;background:linear-gradient(to top,rgba(0,0,0,.6),rgba(0,0,0,0) 55%);border:0;cursor:pointer;padding:0}
+.play-btn.show{display:flex}
+.play-btn span{width:52px;height:52px;border-radius:50%;background:rgba(255,255,255,.92);color:#0b0b0c;display:flex;align-items:center;justify-content:center;font-size:18px}
+.player-overlay{position:fixed;inset:0;background:rgba(6,6,9,.9);display:flex;align-items:center;justify-content:center;z-index:1000;padding:24px}
+.player-overlay[hidden]{display:none}
+.player-box{width:min(960px,100%);background:var(--panel);border:1px solid var(--line);border-radius:10px;overflow:hidden;position:relative}
+.player-close{position:absolute;top:10px;right:10px;z-index:2;width:34px;height:34px;border-radius:50%;border:0;background:rgba(16,16,18,.85);color:var(--text);font-size:20px;line-height:1;cursor:pointer}
+.player-close:hover{background:var(--line)}
+.player-stage{background:#000;aspect-ratio:16/9}
+.player-stage iframe{width:100%;height:100%;border:0;display:block}
+.dinfo{flex:1;min-width:260px;max-width:640px}.dinfo h1{font:800 34px/1.1 "Bricolage Grotesque",sans-serif;margin:0 0 6px}
+.tag{border:1px solid var(--line);border-radius:999px;padding:4px 12px;color:var(--mute);font-size:13px}
+.desc{white-space:pre-line;color:#cfcfd4;max-width:70ch;margin:16px 0}
+.dinfo select{background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:10px;padding:10px 14px;font:inherit}
+.dinfo h2{font-size:18px;margin:28px 0 10px}.wlist a{display:inline-block;margin:0 8px 8px 0;padding:8px 14px;border:1px solid var(--line);border-radius:10px;color:var(--text);text-decoration:none}.wlist a:hover{background:var(--line)}
+.shead{display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:12px}.shead h2{margin-top:20px}
+.sctl{display:flex;gap:6px;flex-wrap:wrap}.sctl button{background:var(--panel);color:var(--mute);border:1px solid var(--line);border-radius:10px;padding:8px 12px;font:inherit;cursor:pointer}.sctl button.on{color:var(--text);background:var(--line)}
+.week{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:12px;margin-top:8px}
+.day{border-top:1px solid var(--line);padding-top:10px;min-width:0}.day h3{margin:0 0 12px;font-size:13px;color:var(--mute);font-weight:500}.day h3 b{color:var(--text);font-size:20px;margin-left:4px}.day.today h3 b{border-bottom:2px solid var(--text)}
+.ep{display:flex;gap:8px;margin-bottom:12px;color:inherit;text-decoration:none;content-visibility:auto;contain-intrinsic-size:auto 56px}.ep img,.ep .th{width:36px;height:52px;border-radius:5px;object-fit:cover;background:#18181b;flex:none}.ep span{display:block;font-size:12px;color:var(--mute)}.ep strong{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;font-size:13px;font-weight:500}
+@media(max-width:1000px){.week{grid-template-columns:1fr}}
+@media(max-width:640px){.dposter{width:150px}.dinfo h1{font-size:26px}}
+@media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important}}
+@media(max-width:640px){nav{width:56px}nav a{width:46px;font-size:10px}main{padding:16px 14px 60px}.card{width:128px}}
+
+.xhero{position:relative;overflow:hidden;margin:0 -28px;padding:4px 28px 28px;isolation:isolate}
+.xbg{position:absolute;inset:-40px;z-index:-2;background-size:cover;background-position:center 20%;filter:blur(38px) brightness(.4) saturate(1.2)}
+.xhero::after{content:"";position:absolute;inset:0;z-index:-1;background:linear-gradient(to bottom,rgba(11,11,12,.25),var(--bg) 96%)}
+.xtop{display:flex;gap:28px;align-items:flex-end;padding-top:16px;flex-wrap:wrap}
+.xhero .dposter{width:200px;box-shadow:0 12px 40px rgba(0,0,0,.5)}
+.xmain{flex:1;min-width:260px;max-width:820px}
+.xmeta{font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--mute);margin-bottom:8px}
+.xmain h1{font:800 clamp(28px,4.2vw,52px)/1.02 "Bricolage Grotesque",sans-serif;margin:0 0 8px;letter-spacing:-.02em}
+.xalt{margin:0 0 10px;color:var(--mute);font-size:14px}
+.xgen{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px;font-size:13px;color:#cfcfd4}
+.xgen span+span::before{content:"/";margin-right:6px;color:var(--mute)}
+.xbtns{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px}
+.xbtn{background:rgba(16,16,18,.7);color:var(--text);border:1px solid var(--line);border-radius:10px;padding:10px 18px;font:inherit;font-weight:700;cursor:pointer}
+.xbtn:hover{background:var(--line)}.xbtn.pri{background:var(--accent);color:#0b0b0c;border-color:var(--accent)}.xbtn.pri:hover{opacity:.9}.xbtn:disabled{opacity:.5;cursor:default}
+.dclamp{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;margin:0 0 4px;max-width:70ch}.dclamp.open{display:block}
+.xmore{background:none;border:0;color:var(--text);font:inherit;font-size:13px;font-weight:700;cursor:pointer;padding:0}
+.xnative{position:absolute;right:28px;top:20px;writing-mode:vertical-rl;color:#3b3b42;font-size:20px;letter-spacing:.25em;max-height:320px;overflow:hidden;pointer-events:none}
+.xbody{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:32px;margin-top:8px}
+@media(max-width:900px){.xbody{grid-template-columns:1fr}.xnative{display:none}}
+.xtabs{display:flex;gap:18px;border-bottom:1px solid var(--line);padding-bottom:10px;margin-bottom:14px;font-weight:700;font-size:14px}
+.xtabs i{font-style:normal;color:var(--mute);font-size:12px;margin-left:6px}
+.xtools{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:10px}
+.xfind{flex:1;min-width:160px;max-width:260px;margin-right:auto;padding:9px 12px;border-radius:10px;border:1px solid var(--line);background:var(--panel);color:var(--text);font:inherit;font-size:13px}
+.xnote{color:var(--mute);font-size:12px;margin:0 0 8px}
+.xlist{max-height:560px;overflow-y:auto}
+.xrow{display:flex;align-items:center;gap:12px;width:100%;background:none;border:0;border-bottom:1px solid var(--line);color:var(--text);padding:13px 6px;font:inherit;text-align:left;cursor:pointer}
+.xrow:hover,.xrow.on{background:var(--panel)}
+.xen{font-weight:700;font-size:14px}.xet{color:var(--mute);font-size:13px;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.xbs{display:flex;gap:6px;margin-left:auto}.xplay{color:var(--mute);font-size:12px}
+.xrow.off,.xnum.off{opacity:.4}
+.xlist.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(52px,1fr));gap:8px;padding:2px}
+.xnum{background:var(--panel);border:1px solid var(--line);color:var(--text);border-radius:8px;padding:9px 0;font:inherit;font-size:13px;font-weight:700;cursor:pointer;text-align:center}
+.xnum:hover{background:var(--line)}.xnum.on{background:var(--accent);color:#0b0b0c;border-color:var(--accent)}
+.xb{border:1px solid var(--line);background:var(--panel);color:var(--mute);border-radius:5px;padding:1px 7px;font:700 11px "DM Sans",sans-serif}
+.xi{display:flex;justify-content:space-between;gap:16px;padding:11px 0;border-bottom:1px solid var(--line);font-size:14px}
+.xi span:first-child{color:var(--mute)}.xi span:last-child{font-weight:700;text-align:right}
+</style>
+</head>
+<body>
+<nav aria-label="Main">
+<div class="logo">H</div>
+<a href="#home" id="n-home" class="on"><b>▶</b>Anime</a>
+<a href="#manga" id="n-manga"><b>▤</b>Manga</a>
+<a href="#discover" id="n-discover"><b>◫</b>Discover</a>
+<a href="#schedule" id="n-schedule"><b>▦</b>Schedule</a>
+<a href="#library" id="n-library"><b>♥</b>Library</a>
+</nav>
+<main>
+<input id="q" class="search" type="search" placeholder="Search anime and manga" aria-label="Search anime and manga">
+<div id="home"><h2>Trending now</h2>
+<p class="sub">Most active this week</p>
+<div class="row ranked" id="trending"></div>
+<h2>Fall 2026</h2>
+<p class="sub">Popular shows airing this season</p>
+<div class="row" id="season"></div>
+<h2>Trending by genre</h2>
+<p class="sub">Pick a genre</p>
+<div class="tabs" id="tabs"></div>
+<div class="row" id="genre"></div>
+<div class="note" id="note"></div></div>
+<div id="discover" hidden><h2>Discover</h2><p class="sub">Filter by genre, format, season, year and status. Use the search bar to find a title.</p>
+<div class="filters" id="filters"></div><div class="tabs" id="gchips"></div><p class="sub" id="count" aria-live="polite"></p><div class="grid" id="grid"></div></div>
+<div id="detail" hidden></div>
+<div id="library" hidden><h2>Library</h2><p class="sub">Titles you saved. Saved in this browser for now.</p><div class="tabs" id="libtabs"></div><p class="sub" id="libempty"></p><div class="grid" id="libgrid"></div></div>
+<div id="manga" hidden><h2>Manga</h2><p class="sub">What readers are picking up this week</p><div class="row ranked" id="m-trend"></div><h2>Manhwa</h2><p class="sub">Korean webtoons, read top to bottom</p><div class="row" id="m-manhwa"></div><h2>Manga</h2><p class="sub">Japanese series</p><div class="row" id="m-manga"></div></div>
+<div id="schedule" hidden><div class="shead"><div><h2>Schedule</h2><p class="sub" id="srange"></p></div><div class="sctl"><button id="s-all" class="on">Everything airing</button><button id="s-lib">My library</button><button id="s-prev" aria-label="Previous week">‹</button><button id="s-now">This week</button><button id="s-next" aria-label="Next week">›</button></div></div><div class="week" id="week"></div></div>
+</main>
+<div id="playerOverlay" class="player-overlay" hidden>
+<div class="player-box">
+<button class="player-close" aria-label="Close player" onclick="closeTrailer()">&times;</button>
+<div class="player-stage"><iframe id="playerFrame" title="Trailer" allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen></iframe></div>
+</div>
+</div>
+<script>
+var API_BASE = "https://anime-proxy.tasinsadman302.workers.dev";
+
+var SAMPLE = [
+  { id: 9044, title: "The Iceblade Sorcerer II", meta: "TV · 2026 · 6.7", ep: "12 eps", genres: ["Action", "Fantasy"], img: "https://cdn.anipixcdn.co/thumbnail/20346dad019e8ccda67ad24ebee17d3c.jpg" },
+  { id: 8903, title: "The Exiled Heavy Knight", meta: "TV · 2026 · 7.1", ep: "26 eps", genres: ["Action", "Fantasy"], img: "https://cdn.anipixcdn.co/thumbnail/81d8f6bc61e91eeecbb1e08f767c475a.jpg" },
+  { id: 9036, title: "The Ramparts of Ice Season 2", meta: "TV · 2026 · 8.4", ep: "Airing", genres: ["Drama", "Romance"], img: "https://cdn.anipixcdn.co/thumbnail/b6ae71493beee188609a8cceeb22e5f1.jpg" }
+];
+
+var GENRES = ["Action", "Adventure", "Comedy", "Drama", "Fantasy", "Romance", "Sci-Fi", "Slice of Life", "Mystery", "Sports"];
+var data = SAMPLE;
+
+function card(a, rank) {
+  var el = document.createElement("a");
+  el.href = "#title";
+  el.onclick = function(e) { e.preventDefault(); openTitle(a); };
+  el.className = "card";
+
+  if (rank) {
+    var n = document.createElement("span");
+    n.className = "num";
+    n.textContent = rank;
+    el.appendChild(n);
+  }
+
+  var p = document.createElement("div");
+  p.className = "poster";
+
+  if (a.img) {
+    var im = new Image();
+    im.loading = "lazy";
+    im.decoding = "async";
+    im.alt = "";
+    im.src = a.img;
+    p.appendChild(im);
+  } else {
+    p.textContent = a.title.split(" ").slice(0, 3).join(" ");
+  }
+
+  if (a.ep) {
+    var b = document.createElement("span");
+    b.className = "badge";
+    b.textContent = a.ep;
+    p.appendChild(b);
+  }
+
+  var t = document.createElement("h3");
+  t.textContent = a.title;
+  var m = document.createElement("p");
+  m.textContent = a.meta;
+
+  el.appendChild(p);
+  el.appendChild(t);
+  el.appendChild(m);
+  return el;
+}
+
+function fill(id, list, ranked) {
+  var r = document.getElementById(id);
+  if (!r) return;
+  r.innerHTML = "";
+  list.forEach(function(a, i) { r.appendChild(card(a, ranked ? i + 1 : 0)); });
+}
+
+function render() {
+  fill("trending", data.slice(0, 8), true);
+  fill("season", window.__s || data.slice(0, 10));
+  pick(window.__g || "Action");
+}
+
+function pick(g) {
+  window.__g = g;
+  var tabs = document.getElementById("tabs");
+  if (!tabs) return;
+  tabs.innerHTML = "";
+  GENRES.forEach(function(x) {
+    var b = document.createElement("button");
+    b.textContent = x;
+    if (x === g) b.className = "on";
+    b.onclick = function() { pick(x); };
+    tabs.appendChild(b);
+  });
+  var l = data.filter(function(a) { return a.genres.indexOf(g) > -1; });
+  fill("genre", l.length ? l : data.slice(0, 5));
+}
+
+function fetchApi(url) {
+  return fetch(url, { method: "GET", headers: { "Accept": "application/json" } })
+    .then(function(r) {
+      if (!r.ok) throw new Error("HTTP " + r.status);
+      return r.json();
+    });
+}
+
+// Mapper for Anikoto API schema
+function parseAnikotoList(res) {
+  var rawData = Array.isArray(res) ? res : (res.data || res.results || []);
+  return rawData.map(function(x) {
+    var genres = (x.terms_by_type && x.terms_by_type.genre) ? x.terms_by_type.genre : (x.genres || ["Action"]);
+    var type = (x.terms_by_type && x.terms_by_type.type && x.terms_by_type.type[0]) || "TV";
+    return {
+      id: x.id,
+      title: x.title || x.name || "Untitled",
+      meta: type + " · " + (x.year || "2026") + " · " + (x.score || "N/A"),
+      ep: x.episodes ? (x.episodes + " eps") : "Airing",
+      genres: genres,
+      img: x.poster || x.image || x.coverImage,
+      description: x.description || "",
+      alt: [x.alternative, x.titles, x.native].filter(Boolean).join(" "),
+      raw: x
+    };
+  });
+}
+
+// Fetch recent anime from API
+fetchApi(API_BASE + "/recent-anime?page=1&per_page=30")
+  .then(function(res) {
+    var parsed = parseAnikotoList(res);
+    if (!parsed.length) { render(); return; }
+    data = parsed;
+    var note = document.getElementById("note");
+    if (note) note.style.display = "none";
+    LIVE = true;
+    render();
+  })
+  .catch(function(err) { console.error("recent-anime failed:", err); render(); });
+
+var LIVE = false, tok = 0, timer = 0;
+var F = { sort: "TRENDING_DESC", format: "", season: "", year: "", status: "", genres: [] };
+
+function Q() { return document.getElementById("q") ? document.getElementById("q").value.trim() : ""; }
+
+function local() {
+  var q = Q().toLowerCase();
+  var l = data.filter(function(a) { return !q || matches(a, q); });
+  return Promise.resolve(l);
+}
+
+function norm(t) { return String(t || "").toLowerCase().replace(/[^a-z0-9 ]+/g, " ").replace(/\s+/g, " ").trim(); }
+function matches(a, q) {
+  var hay = norm(a.title + " " + (a.alt || ""));
+  return norm(q).split(" ").every(function(w) { return hay.indexOf(w) > -1; });
+}
+function cap(s) { s = String(s || ""); return s.charAt(0).toUpperCase() + s.slice(1).toLowerCase(); }
+
+// Anikoto's API has no search, so wide search uses AniList (same as the Anikoto client apps do).
+var MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+var STATUS = { FINISHED: "Finished Airing", RELEASING: "Currently Airing", NOT_YET_RELEASED: "Not yet aired", CANCELLED: "Cancelled", HIATUS: "On Hiatus" };
+function fmtDate(d) { if (!d || !d.year) return ""; return (d.month ? MONTHS[d.month - 1] + " " : "") + (d.day ? d.day + ", " : "") + d.year; }
+
+function parseAni(m) {
+  var t = m.title || {}, title = t.english || t.romaji || t.native || "Untitled";
+  var eps = m.episodes || (m.nextAiringEpisode ? m.nextAiringEpisode.episode - 1 : 0) || 0;
+  var score = m.averageScore ? (m.averageScore / 10).toFixed(1) : "";
+  var genres = m.genres || [];
+  var studios = ((m.studios && m.studios.nodes) || []).map(function(n) { return n.name; });
+  var desc = String(m.description || "").replace(/<br\s*\/?>/gi, "\n").replace(/<[^>]+>/g, "");
+  var tx = document.createElement("textarea"); tx.innerHTML = desc; desc = tx.value;
+  var st = fmtDate(m.startDate), en = fmtDate(m.endDate);
+  return {
+    id: "al" + m.id, src: "ani", aniId: m.id, malId: m.idMal,
+    title: title,
+    meta: (m.format || "TV") + " \u00b7 " + (m.seasonYear || "") + " \u00b7 " + (score || "N/A"),
+    ep: eps ? eps + " eps" : "Airing",
+    genres: genres,
+    img: m.coverImage && (m.coverImage.extraLarge || m.coverImage.large),
+    description: desc,
+    alt: [t.romaji, t.english, t.native].filter(Boolean).join(" "),
+    raw: {
+      title: title, alternative: (t.romaji && t.romaji !== title) ? t.romaji : "", native: t.native || "",
+      description: desc, season: m.season || "", year: m.seasonYear || "",
+      aired: st ? (st + (en ? " to " + en : "")) : "", status: STATUS[m.status] || m.status || "",
+      score: score, duration: m.duration ? m.duration + " min" : "", episodes: eps || "",
+      source: m.source ? cap(String(m.source).replace(/_/g, " ")) : "",
+      terms_by_type: { genre: genres, studios: studios, type: [m.format || "TV"] }
+    }
+  };
+}
+
+var ANI_Q = 'query($s:String){Page(page:1,perPage:30){media(type:ANIME,search:$s,sort:SEARCH_MATCH,isAdult:false){id idMal title{romaji english native} format status season seasonYear episodes duration source averageScore genres description(asHtml:false) coverImage{extraLarge large} startDate{year month day} endDate{year month day} nextAiringEpisode{episode} studios(isMain:true){nodes{name}}}}}';
+function searchAni(q) {
+  return fetch("https://graphql.anilist.co", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "Accept": "application/json" },
+    body: JSON.stringify({ query: ANI_Q, variables: { s: q } })
+  }).then(function(r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+    .then(function(res) { return ((res.data && res.data.Page && res.data.Page.media) || []).map(parseAni); });
+}
+
+function live() {
+  var q = Q();
+  window.__note = "";
+  if (!q) return Promise.resolve(data);
+  var recent = data.filter(function(a) { return matches(a, q); });
+  return searchAni(q).then(function(ani) {
+    var seen = {};
+    recent.forEach(function(a) { var r = a.raw || {}; if (r.ani_id) seen["a" + r.ani_id] = 1; if (r.mal_id) seen["m" + r.mal_id] = 1; });
+    return recent.concat(ani.filter(function(m) { return !seen["a" + m.aniId] && !(m.malId && seen["m" + m.malId]); }));
+  }).catch(function(err) {
+    console.error("AniList search failed:", err);
+    window.__note = " (wider search unavailable)";
+    return recent;
+  });
+}
+
+function draw(l) {
+  var g = document.getElementById("grid");
+  if (!g) return;
+  var f = document.createDocumentFragment();
+  l.forEach(function(a) { f.appendChild(card(a, 0)); });
+  g.innerHTML = "";
+  g.appendChild(f);
+  var cnt = document.getElementById("count");
+  if (cnt) cnt.textContent = (l.length ? l.length + " titles" : "No titles match.") + (window.__note || "");
+}
+
+function run() {
+  var t = ++tok;
+  var c = document.getElementById("count");
+  if (Q() && LIVE && c) c.textContent = "Searching\u2026";
+  ((LIVE || Q()) ? live() : local()).then(function(l) { if (t === tok) draw(l); }).catch(function() { local().then(draw); });
+}
+
+var qEl = document.getElementById("q");
+if (qEl) {
+  qEl.addEventListener("input", function() {
+    if (location.hash !== "#discover") location.hash = "discover";
+    clearTimeout(timer);
+    timer = setTimeout(run, 300);
+  });
+}
+
+var CUR = null, LIB = {};
+try { LIB = JSON.parse(localStorage.getItem("hoshi-lib") || "{}"); } catch (e) {}
+function saveLib() { try { localStorage.setItem("hoshi-lib", JSON.stringify(LIB)); } catch (e) {} }
+
+function openTitle(a) { CUR = a; location.hash = "title"; }
+function mk(t, c, x) { var e = document.createElement(t); if (c) e.className = c; if (x) e.textContent = x; return e; }
+
+// Detail view and Episode Streaming integration
+function fmtList(v) { return Array.isArray(v) ? v.join(", ") : (v || ""); }
+
+function detail(a) {
+  if (!a) return;
+  var d = document.getElementById("detail");
+  if (!d) return;
+  d.innerHTML = "";
+
+  // ---- hero ----
+  var hero = mk("div", "xhero"), bg = mk("div", "xbg"), nat = mk("div", "xnative");
+  hero.appendChild(bg); hero.appendChild(nat);
+  var back = mk("button", "back", "\u2190 Back");
+  back.onclick = function() { history.back(); };
+  hero.appendChild(back);
+
+  var top = mk("div", "xtop"), ph = mk("div", "poster dposter");
+  function setPoster(src) {
+    if (!src || ph.querySelector("img")) return;
+    var im = new Image();
+    im.alt = ""; im.decoding = "async"; im.src = src;
+    ph.insertBefore(im, ph.firstChild);
+    bg.style.backgroundImage = 'url("' + String(src).replace(/"/g, "%22") + '")';
+  }
+  if (a.img) setPoster(a.img); else ph.textContent = a.title;
+
+  var main = mk("div", "xmain");
+  var metaEl = mk("div", "xmeta"), altEl = mk("p", "xalt"), genEl = mk("div", "xgen"), btns = mk("div", "xbtns");
+  var watch = mk("button", "xbtn pri", "Loading\u2026"); watch.type = "button"; watch.disabled = true;
+  var save = mk("button", "xbtn", LIB[a.id] ? "\u2665 In library" : "\u2661 Add to library"); save.type = "button";
+  save.onclick = function() {
+    if (LIB[a.id]) { delete LIB[a.id]; save.textContent = "\u2661 Add to library"; }
+    else {
+      var c = {}; Object.keys(a).forEach(function(k) { if (k !== "raw") c[k] = a[k]; });
+      LIB[a.id] = c; save.textContent = "\u2665 In library";
+    }
+    saveLib();
+  };
+  btns.appendChild(watch); btns.appendChild(save);
+  var desc = mk("p", "desc dclamp", a.description || "Loading series details\u2026");
+  var more = mk("button", "xmore", "More"); more.type = "button"; more.hidden = true;
+  more.onclick = function() { more.textContent = desc.classList.toggle("open") ? "Less" : "More"; };
+  [metaEl, mk("h1", "", a.title), altEl, genEl, btns, desc, more].forEach(function(e) { main.appendChild(e); });
+  top.appendChild(ph); top.appendChild(main); hero.appendChild(top); d.appendChild(hero);
+
+  // ---- body: episodes + info ----
+  var body = mk("div", "xbody"), left = mk("section", "xleft"), side = mk("aside", "xside");
+  var tabs = mk("div", "xtabs"), tab = mk("span", "", "Episodes"), cnt = mk("i", "", "");
+  tab.appendChild(cnt); tabs.appendChild(tab); left.appendChild(tabs);
+
+  var tools = mk("div", "xtools");
+  var find = mk("input", "xfind"); find.type = "search"; find.placeholder = "Find an episode"; find.setAttribute("aria-label", "Find an episode");
+  var vw = mk("div", "sctl"), bList = mk("button", "on", "\u2630"), bGrid = mk("button", "", "\u25a6");
+  bList.setAttribute("aria-label", "List view"); bGrid.setAttribute("aria-label", "Grid view");
+  vw.appendChild(bList); vw.appendChild(bGrid);
+  var langWrap = mk("div", "sctl"), subBtn = mk("button", "on", "Sub"), dubBtn = mk("button", "", "Dub");
+  langWrap.appendChild(subBtn); langWrap.appendChild(dubBtn);
+  [find, vw, langWrap].forEach(function(e) { tools.appendChild(e); });
+  var note = mk("p", "xnote", ""); note.hidden = true;
+  var list = mk("div", "xlist");
+  [tools, note, list].forEach(function(e) { left.appendChild(e); });
+  body.appendChild(left); body.appendChild(side); d.appendChild(body);
+
+  // ---- info panel ----
+  function fill(o) {
+    var t = o.terms_by_type || {};
+    var type = (t.type && t.type[0]) || (Array.isArray(o.type) ? o.type[0] : o.type) || "";
+    var prem = (o.season || o.year) ? ((o.season ? cap(o.season) : "") + " " + (o.year || "")).trim() : "";
+    metaEl.textContent = [type, prem, o.status].filter(Boolean).join(" \u00b7 ");
+    var alts = [];
+    [o.alternative, o.titles].forEach(function(x) { if (x && x !== o.title && alts.indexOf(x) < 0) alts.push(x); });
+    altEl.textContent = alts.join("; "); altEl.hidden = !alts.length;
+    genEl.innerHTML = "";
+    (t.genre || o.genres || a.genres || []).forEach(function(g) { genEl.appendChild(mk("span", "", g)); });
+    if (o.description) desc.textContent = o.description;
+    more.hidden = desc.textContent.length < 220;
+    nat.textContent = o.native || "";
+    side.innerHTML = "";
+    [["Format", type], ["Episodes", o.episodes], ["Length", o.duration], ["Status", o.status], ["Aired", o.aired],
+     ["Premiered", prem], ["Studio", fmtList(t.studios || o.studios)], ["Producers", fmtList(t.producers || o.producers)],
+     ["Source", o.source], ["Score", o.score], ["Rating", o.rating]].forEach(function(r) {
+      if (r[1] === undefined || r[1] === null || r[1] === "") return;
+      var row = mk("div", "xi"); row.appendChild(mk("span", "", r[0])); row.appendChild(mk("span", "", String(r[1])));
+      side.appendChild(row);
+    });
+  }
+  fill(a.raw || { description: a.description, terms_by_type: { genre: a.genres } });
+
+  // ---- episodes ----
+  var episodes = [], lang = "sub", view = "list", active = null, query = "", emptyMsg = "";
+
+  function streamFor(ep, l) {
+    var e = ep && (ep.embed_url || ep.embed || ep.url || ep.streamUrl);
+    if (!e) return null;
+    if (typeof e === "string") return l === "sub" ? e : null;
+    return e[l] || null;
+  }
+  function epNum(ep, i) { return ep.number || ep.episode || ep.num || (i + 1); }
+
+  function play(ep) {
+    var u = streamFor(ep, lang);
+    if (!u) { alert("No " + lang.toUpperCase() + " stream available for this episode."); return; }
+    active = ep; draw(); openEpisodePlayer(u);
+  }
+
+  function draw() {
+    list.innerHTML = ""; list.className = "xlist" + (view === "grid" ? " grid" : "");
+    var qq = norm(query);
+    episodes.forEach(function(ep, i) {
+      var n = epNum(ep, i);
+      var t = (ep.title && !/^episode\s*\d+$/i.test(ep.title)) ? ep.title : "";
+      if (qq && norm("episode " + n + " " + t).indexOf(qq) < 0) return;
+      var url = streamFor(ep, lang);
+      var el = mk("button", (view === "grid" ? "xnum" : "xrow") + (url ? "" : " off") + (active === ep ? " on" : ""));
+      el.type = "button";
+      if (view === "grid") { el.textContent = n; el.title = t || ("Episode " + n); }
+      else {
+        el.appendChild(mk("span", "xen", "Episode " + n));
+        if (t) el.appendChild(mk("span", "xet", t));
+        var bs = mk("span", "xbs");
+        if (streamFor(ep, "sub")) bs.appendChild(mk("span", "xb", "Sub"));
+        if (streamFor(ep, "dub")) bs.appendChild(mk("span", "xb", "Dub"));
+        el.appendChild(bs); el.appendChild(mk("span", "xplay", "\u25b6"));
+      }
+      el.onclick = function() { play(ep); };
+      list.appendChild(el);
+    });
+    if (!list.children.length) list.appendChild(mk("p", "sub", episodes.length ? "No episodes match." : emptyMsg));
+  }
+
+  function setEpisodes(eps, noteText, empty) {
+    episodes = eps; emptyMsg = empty || "No episodes found.";
+    cnt.textContent = eps.length;
+    note.textContent = noteText || ""; note.hidden = !noteText;
+    var subN = eps.filter(function(e) { return !!streamFor(e, "sub"); }).length;
+    var dubN = eps.filter(function(e) { return !!streamFor(e, "dub"); }).length;
+    subBtn.disabled = !subN; dubBtn.disabled = !dubN;
+    if (!subN && dubN) { lang = "dub"; subBtn.className = ""; dubBtn.className = "on"; }
+    var first = eps.filter(function(e) { return !!streamFor(e, lang); })[0];
+    if (first) {
+      watch.disabled = false;
+      watch.textContent = "\u25b6 Watch E" + epNum(first, eps.indexOf(first));
+      watch.onclick = function() { play(first); };
+    } else { watch.disabled = true; watch.textContent = "No streams"; }
+    subBtn.onclick = function() { if (!subN) return; lang = "sub"; subBtn.className = "on"; dubBtn.className = ""; draw(); };
+    dubBtn.onclick = function() { if (!dubN) return; lang = "dub"; dubBtn.className = "on"; subBtn.className = ""; draw(); };
+    draw();
+  }
+
+  find.oninput = function() { query = find.value; draw(); };
+  bList.onclick = function() { view = "list"; bList.className = "on"; bGrid.className = ""; draw(); };
+  bGrid.onclick = function() { view = "grid"; bGrid.className = "on"; bList.className = ""; draw(); };
+
+  if (a.src === "ani") {
+    // Title found via AniList: build episodes from the count and stream from MegaPlay by AniList ID
+    var n = parseInt(a.raw && a.raw.episodes, 10) || 0, base = "https://megaplay.buzz/stream/ani/" + a.aniId + "/", gen = [];
+    for (var i = 1; i <= n; i++) gen.push({ number: i, embed_url: { sub: base + i + "/sub", dub: base + i + "/dub" } });
+    setEpisodes(gen, "Streams load from MegaPlay by AniList ID. Dub may not exist for every title.", "Episode count isn't known for this title yet.");
+  } else {
+    var seriesUrl = API_BASE + "/series/" + (a.id || 9044);
+    fetchApi(seriesUrl).then(function(res) {
+      if (CUR !== a) return;
+      // Real shape: { ok, data: { anime: {...}, episodes: [...] } }
+      var payload = (res && res.data && typeof res.data === "object") ? res.data : (res || {});
+      var meta = payload.anime || {};
+      var eps = Array.isArray(payload) ? payload : (Array.isArray(payload.episodes) ? payload.episodes : []);
+      var merged = {};
+      Object.keys(a.raw || {}).forEach(function(k) { merged[k] = a.raw[k]; });
+      Object.keys(meta).forEach(function(k) { if (meta[k] !== "" && meta[k] !== null) merged[k] = meta[k]; });
+      fill(merged); setPoster(meta.poster);
+      var total = parseInt(merged.episodes, 10);
+      setEpisodes(eps, (total && eps.length < total) ? "Showing " + eps.length + " of " + total + " episodes. The API only lists these." : "", "No episode streams found for this series.");
+    }).catch(function(err) {
+      cnt.textContent = "!"; watch.textContent = "Unavailable";
+      list.innerHTML = ""; list.appendChild(mk("p", "sub", "Couldn't load episodes (" + ((err && err.message) || "unknown error") + "). Check API_BASE."));
+      console.error("Series fetch failed:", seriesUrl, err);
+    });
+  }
+}
+
+function openEpisodePlayer(url) {
+  if (!url) return;
+  var frame = document.getElementById("playerFrame");
+  var overlay = document.getElementById("playerOverlay");
+  if (frame && overlay) {
+    frame.src = url;
+    overlay.hidden = false;
+    document.body.style.overflow = "hidden";
+  }
+}
+
+function closeTrailer() {
+  var frame = document.getElementById("playerFrame");
+  var overlay = document.getElementById("playerOverlay");
+  if (frame) frame.src = "";
+  if (overlay) overlay.hidden = true;
+  document.body.style.overflow = "";
+}
+
+document.addEventListener("keydown", function(e) {
+  var overlay = document.getElementById("playerOverlay");
+  if (e.key === "Escape" && overlay && !overlay.hidden) closeTrailer();
+});
+
+function drawLib() {
+  var items = Object.keys(LIB).map(function(k) { return LIB[k]; });
+  var g = document.getElementById("libgrid"), e = document.getElementById("libempty");
+  if (!g) return;
+  g.innerHTML = "";
+  items.forEach(function(a) { g.appendChild(card(a, 0)); });
+  if (e) e.textContent = items.length ? items.length + " saved" : "Nothing saved yet. Open a title and press Save.";
+}
+
+function placeholder(v) {
+  var el = document.getElementById(v);
+  if (!el || el.getAttribute("data-ph")) return;
+  el.setAttribute("data-ph", "1");
+  el.innerHTML = "<h2>" + (v === "manga" ? "Manga" : "Schedule") + "</h2><p class=\"sub\">Not connected yet. The Anikoto API only provides anime.</p>";
+}
+
+function route() {
+  var h = location.hash;
+  if (h === "#title" && !CUR) h = "";
+  var V = { "#discover": "discover", "#title": "detail", "#library": "library", "#manga": "manga", "#schedule": "schedule" };
+  var v = V[h] || "home";
+
+  ["home", "discover", "detail", "library", "manga", "schedule"].forEach(function(n) {
+    var el = document.getElementById(n);
+    if (el) el.hidden = (n !== v);
+  });
+
+  if (v === "detail") detail(CUR);
+  if (v === "discover") run();
+  if (v === "library") drawLib();
+  if (v === "manga" || v === "schedule") placeholder(v);
+
+  ["home", "manga", "discover", "schedule", "library"].forEach(function(n) {
+    var l = document.getElementById("n-" + n);
+    if (l) l.className = (n === v) ? "on" : "";
+  });
+  window.scrollTo(0, 0);
+}
+
+window.addEventListener("hashchange", route);
+route();
+</script></body>
+</html>
