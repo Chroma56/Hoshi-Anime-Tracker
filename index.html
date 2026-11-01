@@ -141,7 +141,7 @@ h2{font:800 24px "Bricolage Grotesque",sans-serif;margin:36px 0 2px}
 [hidden]{display:none!important}
 .dsctl{display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin:18px 0 10px}
 .dstabs{display:inline-flex;gap:4px;padding:4px;border:1px solid var(--line);border-radius:12px;background:var(--panel);flex-wrap:wrap}
-.dstabs button{background:none;border:0;color:var(--mute);padding:8px 16px;border-radius:9px;font:inherit;font-weight:700;cursor:pointer}
+.dstabs button{background:none;border:0;color:var(--mute);padding:8px 16px;border-radius:99px;font:inherit;font-weight:700;cursor:pointer}
 .dstabs button.on{background:var(--line);color:var(--text)}
 .dssel{background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:12px;padding:10px 14px;font:inherit}.dssel:disabled{opacity:.4}
 .dsnote{color:var(--mute);font-size:13px;margin:0 0 18px}
@@ -267,6 +267,9 @@ h2{font:800 24px "Bricolage Grotesque",sans-serif;margin:36px 0 2px}
 </div>
 <script>
 var API_BASE = "https://anime-proxy.tasinsadman302.workers.dev";
+// IMPORTANT: "localhost" only works when this page and the RPC server run on the same device.
+// Replace with your hosted RPC URL (https) if you want it to work on phone / when published.
+var RPC_BASE = "http://localhost:5310/api/rpc";
 
 var SAMPLE = [
   { id: 9044, title: "The Iceblade Sorcerer II", meta: "TV · 2026 · 6.7", ep: "12 eps", genres: ["Action", "Fantasy"], img: "https://cdn.anipixcdn.co/thumbnail/20346dad019e8ccda67ad24ebee17d3c.jpg" },
@@ -874,44 +877,105 @@ function cachedQuery(q, v) {
   var k = q.length + JSON.stringify(v);
   return BC[k] || (BC[k] = aniQuery(q, v).catch(function(e) { delete BC[k]; throw e; }));
 }
-// ===== Manga — multi-source (MangaDex + ComicK + WeebCentral) =====
+
+// ===== Manga — RPC API Router Connection =====
 var MANGA_LOADED = false;
-var MANGA_API = "https://hoshi-manga.tasinsadman302.workers.dev";
 var RP = {}, MC = {};
 try { RP = JSON.parse(localStorage.getItem("hoshi-read") || "{}"); } catch (e) {}
 function saveRP() { try { localStorage.setItem("hoshi-read", JSON.stringify(RP)); } catch (e) {} }
-// Chapters found to have no readable pages (remembered for a week so they get skipped)
+
 var DEAD = {};
 try { DEAD = JSON.parse(localStorage.getItem("hoshi-dead") || "{}"); } catch (e) {}
 function isDead(id, num) { var t = DEAD[id + ":" + num]; return !!t && Date.now() - t < 6048e5; }
 function markDead(id, num) { DEAD[id + ":" + num] = Date.now(); try { localStorage.setItem("hoshi-dead", JSON.stringify(DEAD)); } catch (e) {} }
 
-function mangaFetch(path) {
-  return fetch(MANGA_API + path, { headers: { Accept: "application/json" } })
-    .then(function(r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); });
+// RPC JSON POST Call Helper
+function mangaRpc(channel, args, prefs) {
+  var headers = { "Content-Type": "application/json", "Accept": "application/json" };
+  if (prefs) headers["X-Pz-Prefs"] = JSON.stringify(prefs);
+  return fetch(RPC_BASE + "/" + channel, {
+    method: "POST",
+    headers: headers,
+    body: JSON.stringify({ args: args || [] })
+  }).then(function(r) {
+    return r.text().then(function(t) {
+      var j = null;
+      try { j = t ? JSON.parse(t) : null; } catch (e) {}
+      if (!r.ok) throw new Error("RPC HTTP " + r.status + ((j && (j.error || j.message)) ? " - " + (j.error || j.message) : ""));
+      if (j && !Array.isArray(j) && j.error) throw new Error(String(j.error));
+      return j;
+    });
+  });
+}
+
+// ----- AniList manga lookups (type MANGA; the anime searchAni() can't be used here) -----
+var MANGA_ORIGIN = { JP: "ja", KR: "ko", CN: "zh", TW: "zh", HK: "zh" };
+var MANGA_STATUS = { RELEASING: "ongoing", FINISHED: "completed", HIATUS: "hiatus", CANCELLED: "cancelled", NOT_YET_RELEASED: "upcoming" };
+var AM_F = 'id idMal title{romaji english native} format status countryOfOrigin startDate{year} genres description(asHtml:false) coverImage{large extraLarge}';
+function aniMangaQuery(filter, withSearch) {
+  return 'query' + (withSearch ? '($s:String)' : '') + '{Page(page:1,perPage:30){media(type:MANGA,format_not:NOVEL,isAdult:false,' + filter + '){' + AM_F + '}}}';
+}
+function aniGql(query, variables, signal) {
+  return fetch("https://graphql.anilist.co", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "Accept": "application/json" },
+    body: JSON.stringify({ query: query, variables: variables || {} }),
+    signal: signal
+  }).then(function(r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+    .then(function(res) { return ((res.data && res.data.Page && res.data.Page.media) || []).map(parseAniManga); });
+}
+function parseAniManga(m) {
+  var t = m.title || {}, title = t.english || t.romaji || t.native || "Untitled";
+  var desc = String(m.description || "").replace(/<br\s*\/?>/gi, "\n").replace(/<[^>]+>/g, "");
+  var tx = document.createElement("textarea"); tx.innerHTML = desc; desc = tx.value;
+  return {
+    id: "alm" + m.id,            // "alm" so it never collides with anime ids ("al" + id)
+    aniId: m.id, malId: m.idMal, source: "",
+    title: title, lang: MANGA_ORIGIN[m.countryOfOrigin] || "ja",
+    year: (m.startDate && m.startDate.year) || "",
+    status: MANGA_STATUS[m.status] || "",
+    genres: m.genres || [],
+    img: m.coverImage && (m.coverImage.extraLarge || m.coverImage.large) || "",
+    description: desc
+  };
+}
+var AMC = {}, amCtl = null;
+function searchMangaAni(q) {
+  var k = norm(q);
+  if (AMC[k]) return Promise.resolve(AMC[k]);
+  if (amCtl) amCtl.abort();
+  amCtl = window.AbortController ? new AbortController() : null;
+  return aniGql(aniMangaQuery("search:$s,sort:SEARCH_MATCH", true), { s: q }, amCtl ? amCtl.signal : undefined)
+    .then(function(l) { AMC[k] = l; return l; });
+}
+function trendingMangaAni(country) {
+  return aniGql(aniMangaQuery('sort:TRENDING_DESC' + (country ? ',countryOfOrigin:"' + country + '"' : ''), false)).catch(function() { return []; });
 }
 
 function normalizeCard(item) {
+  var label = item.lang === "ko" ? "Manhwa" : item.lang === "zh" ? "Manhua" : "Manga";
   return {
     id: item.id,
-    source: item.source,
+    aniId: item.aniId || null,
+    malId: item.malId || null,
+    source: item.source || "",
     title: item.title || "Untitled",
     type: "Manga",
-    lang: item.lang || "",
+    lang: item.lang || "ja",
     year: item.year || "",
     sub: item.status || "",
-    meta: (item.status ? cap(item.status) : "Releasing") + (item.year ? " \u00b7 " + item.year : ""),
+    meta: label + (item.status ? " \u00b7 " + cap(item.status) : "") + (item.year ? " \u00b7 " + item.year : ""),
     ep: "",
     genres: item.genres || [],
     img: item.img || "",
     description: item.description || "",
-    anilistId: item.anilistId || null,
+    anilistId: item.aniId || null,
     raw: item,
   };
 }
 
 function sourceBadge(src) {
-  return { mangadex: "MD", comick: "CK", weebcentral: "WC" }[src] || (src || "");
+  return { mangadex: "MD", comick: "CK", weebcentral: "WC", asura: "AS", flame: "FC", mangapill: "MP" }[src] || (src || "");
 }
 
 function fillCards(container, list, ranked) {
@@ -926,56 +990,50 @@ function loadMangaSection() {
   var mManga  = document.getElementById("m-manga");
   var mManhua = document.getElementById("m-manhua");
   if (!mTrend) return;
-  mangaFetch("/trending")
-    .then(function(res) {
-      var all = res.trending || [];
-      function langList(key, code) {
-        var l = (res[key] && res[key].length) ? res[key] : all.filter(function(a) { return a.lang === code; });
-        return l.slice(0, 24).map(normalizeCard);
-      }
-      fillCards(mTrend, all.slice(0, 12).map(normalizeCard), true);
-      fillCards(mManhwa, langList("manhwa", "ko"));
-      fillCards(mManga, langList("manga", "ja"));
-      fillCards(mManhua, langList("manhua", "zh"));
-      [mManhwa, mManga, mManhua].forEach(function(r) {
-        var sub = r && r.previousElementSibling, hd = sub && sub.previousElementSibling;
-        if (r && hd && !r.children.length) { hd.hidden = true; sub.hidden = true; r.hidden = true; }
+  Promise.all([trendingMangaAni(""), trendingMangaAni("KR"), trendingMangaAni("JP"), trendingMangaAni("CN")])
+    .then(function(r) {
+      if (!r[0].length) throw new Error("no results");
+      fillCards(mTrend, r[0].slice(0, 12).map(normalizeCard), true);
+      fillCards(mManhwa, r[1].slice(0, 24).map(normalizeCard));
+      fillCards(mManga, r[2].slice(0, 24).map(normalizeCard));
+      fillCards(mManhua, r[3].slice(0, 24).map(normalizeCard));
+      [mManhwa, mManga, mManhua].forEach(function(row) {
+        var sub = row && row.previousElementSibling, hd = sub && sub.previousElementSibling;
+        if (row && hd && !row.children.length) { hd.hidden = true; sub.hidden = true; row.hidden = true; }
       });
     })
     .catch(function(err) {
-      console.error("Manga trending failed:", err);
+      console.error("Manga load failed:", err);
+      MANGA_LOADED = false; // let the tab retry next time it is opened
       if (mTrend) mTrend.innerHTML = "<p class=\"sub\">Couldn\u2019t load trending manga right now.</p>";
     });
 }
 
-function mangaChapters(mangaId) {
-  if (MC[mangaId]) return Promise.resolve(MC[mangaId]);
-  return mangaFetch("/chapters/" + encodeURIComponent(mangaId))
+function mangaChapters(mediaId) {
+  if (MC[mediaId]) return Promise.resolve(MC[mediaId]);
+  return mangaRpc("manga:chapters", [parseInt(mediaId, 10) || mediaId, null, false])
     .then(function(res) {
-      var chs = (res.chapters || []).map(function(ch) {
-        return { id: ch.id, num: String(ch.num), title: ch.title || "", vol: ch.vol || "" };
-      });
-      chs.sort(function(x, y) { return parseFloat(x.num) - parseFloat(y.num); });
-      MC[mangaId] = chs;
+      var list = Array.isArray(res) ? res : ((res && (res.chapters || res.data)) || []);
+      var chs = list.map(function(ch) {
+        var n = ch.number != null ? ch.number : (ch.num != null ? ch.num : ch.chapter);
+        return { id: ch.id, num: n == null ? "" : String(n), title: ch.title || "", vol: ch.volume || ch.vol || "", rawObj: ch };
+      }).filter(function(c) { return c.num !== ""; });
+      chs.sort(function(x, y) { return (parseFloat(x.num) || 0) - (parseFloat(y.num) || 0); });
+      MC[mediaId] = chs;
       return chs;
     });
 }
 
-function mangaPages(chapterId) {
-  return mangaFetch("/pages/" + encodeURIComponent(chapterId))
+function mangaPages(chapterObj, dataSaver) {
+  return mangaRpc("manga:pages", [chapterObj.rawObj || chapterObj], { dataSaver: !!dataSaver })
     .then(function(res) {
-      var pages = res.pages || [];
-      if (res.needsProxy) {
-        pages = pages.map(function(p) { return MANGA_API + "/image?url=" + encodeURIComponent(p); });
-      }
-      return pages;
+      var list = Array.isArray(res) ? res : ((res && (res.pages || res.data)) || []);
+      return list.map(function(p) { return typeof p === "string" ? p : (p && (p.url || p.src || p.img)); }).filter(Boolean);
     });
 }
 
-
-
 function openReader(a, chs, start, onProg) {
-  var rtl = a.lang === "ja", idx = start, mode = "scroll", pages = [], pg = 0, tok = 0, srcs = null, ds = false;
+  var rtl = a.lang === "ja", idx = start, mode = "scroll", pages = [], pg = 0, tok = 0, ds = false;
   try { ds = localStorage.getItem("hoshi-ds") === "1"; } catch (e) {}
   var ov = mk("div", "rdr"), top = mk("div", "rdrtop"), body = mk("div", "rdrbody");
   var close = mk("button", "vbtn sm", "\u2715"), ttl = mk("span", "vplt", ""), cnt = mk("span", "sub", "");
@@ -996,16 +1054,16 @@ function openReader(a, chs, start, onProg) {
     if (k < 0 || k >= chs.length) return;
     if (!auto) skipped = 0;
     d = d || 1;
-    idx = k; pg = 0; pages = []; srcs = null; var t = ++tok, c = chs[k];
+    idx = k; pg = 0; pages = []; var t = ++tok, c = chs[k];
     ttl.textContent = "Chapter " + c.num + (skipped ? " \u00b7 skipped " + skipped : ""); cnt.textContent = "";
     prev.disabled = k === 0; next.disabled = k === chs.length - 1;
     msg("Loading\u2026");
     var p = RP[a.id] || (RP[a.id] = { s: {} });
     p.l = c.num; p.s[c.num] = 1; p.ts = Date.now(); p.n = chs.length; p.a = snap(a); saveRP();
-    mangaPages(c.id).then(function(pgs) {
+    
+    mangaPages(c, ds).then(function(pgs) {
       if (t !== tok) return;
-      srcs = { f: pgs, s: pgs };
-      setPages();
+      pages = pgs;
       if (!pages.length) {
         markDead(a.id, c.num); delete p.s[c.num]; saveRP();
         var j = k + d;
@@ -1016,7 +1074,7 @@ function openReader(a, chs, start, onProg) {
       draw();
     }).catch(function(err) { if (t === tok) msg("Couldn't load this chapter (" + (err.message || "error") + ")."); });
   }
-  function setPages() { if (!srcs) return; pages = (ds && srcs.s.length) ? srcs.s : srcs.f; }
+
   function setDs() { dsb.textContent = ds ? "Saver on" : "Saver off"; dsb.title = "Data saver: smaller, lower-quality images"; }
   function draw() {
     body.innerHTML = ""; body.className = "rdrbody" + (mode === "page" ? " pg" : "");
@@ -1050,8 +1108,8 @@ function openReader(a, chs, start, onProg) {
   close.onclick = shut; setDs();
   dsb.onclick = function() {
     ds = !ds; try { localStorage.setItem("hoshi-ds", ds ? "1" : "0"); } catch (e) {}
-    setDs(); if (!srcs) return;
-    setPages(); if (pg >= pages.length) pg = 0; draw();
+    setDs();
+    load(idx);
   };
   prev.onclick = function() { load(idx - 1, -1); };
   next.onclick = function() { load(idx + 1, 1); };
@@ -1136,7 +1194,7 @@ function mangaDetail(a) {
   readBtn.onclick = function() { read(startIdx); };
   find.oninput = function() { clearTimeout(tm); tm = setTimeout(function() { q = find.value; drawRanges(); draw(); }, 120); };
 
-  mangaChapters(a.id).then(function(res) {
+  mangaChapters(a.aniId || a.id).then(function(res) {
     if (CUR !== a) return;
     chs = res; cnt.textContent = chs.length;
     if (!chs.length) {
@@ -1196,13 +1254,13 @@ function initMangaSearch() {
     if (!v) { res.hidden = true; return; }
     t = setTimeout(function() {
       var k = ++tk;
-      mangaFetch("/search?q=" + encodeURIComponent(v) + "&limit=30")
-        .then(function(j) {
+      searchMangaAni(v)
+        .then(function(list) {
           if (k !== tk) return;
-          var list = (j.results || []).map(normalizeCard);
           grid.innerHTML = ""; res.hidden = false;
-          if (!list.length) { grid.appendChild(mk("p", "sub", "No results.")); return; }
-          list.forEach(function(a) { grid.appendChild(dcard(a)); });
+          var normList = list.map(normalizeCard);
+          if (!normList.length) { grid.appendChild(mk("p", "sub", "No results.")); return; }
+          normList.forEach(function(a) { grid.appendChild(dcard(a)); });
         }).catch(function() { if (k === tk) { res.hidden = false; grid.innerHTML = ""; grid.appendChild(mk("p", "sub", "Search failed. Try again.")); } });
     }, 350);
   };
@@ -1496,13 +1554,6 @@ function drawLib() {
   g.innerHTML = "";
   items.forEach(function(a) { g.appendChild(dcard(a)); });
   if (e) e.textContent = items.length ? items.length + " saved" : "Nothing saved yet. Open a title and press Save.";
-}
-
-function placeholder(v) {
-  var el = document.getElementById(v);
-  if (!el || el.getAttribute("data-ph")) return;
-  el.setAttribute("data-ph", "1");
-  el.innerHTML = "<h2>" + (v === "manga" ? "Manga" : "Schedule") + "</h2><p class=\"sub\">Not connected yet. The Anikoto API only provides anime.</p>";
 }
 
 function route() {
