@@ -1,55 +1,152 @@
-// Hoshi: optional anime-sdk Anikoto connector. Never proxies media.
-// Matching is explicit so an unrelated show is never selected by a fuzzy match.
-const asText = x => String(x ?? '').trim();
-const normalize = x => asText(x).toLowerCase().normalize('NFKC').replace(/[^a-z0-9]+/g, ' ').trim();
 
-export function titleForSeries(series, rawMap = process.env.ANIKOTO_TITLE_MAP || '{}') {
-  if (!/^[A-Za-z0-9_-]{1,60}$/.test(asText(series))) return null;
-  try {
-    const map = typeof rawMap === 'string' ? JSON.parse(rawMap) : rawMap;
-    const title = Object.hasOwn(map, series) ? map[series] : null;
-    return typeof title === 'string' && title.length <= 150 && title.trim() ? title.trim() : null;
-  } catch { return null; }
-}
+/*
+ * Hoshi Automatic Anime Matching Diagnostic V2
+ *
+ * Tests:
+ * 1. AniList ID lookup
+ * 2. Automatic Anikoto matching
+ * 3. Episode number matching
+ * 4. SUB / DUB availability
+ *
+ * No video streams are requested.
+ */
 
-export function exactTitleMatches(results, title) {
-  if (!Array.isArray(results)) return [];
-  const needle = normalize(title);
-  if (!needle) return [];
-  return results.filter(result => {
-    const strings = [result?.title, result?.name, result?.englishTitle, result?.romajiTitle];
-    // Some SDK versions store title fields inside an object.
-    if (result?.title && typeof result.title === 'object') strings.push(...Object.values(result.title));
-    return strings.some(s => typeof s === 'string' && normalize(s) === needle);
-  });
-}
+import {
+  fetchAniListTitles,
+  matchHoshiAnime,
+  matchHoshiEpisode
+} from './anikoto-provider.mjs';
 
-export async function findAnikotoEpisodes(series, { sdk, titleMap } = {}) {
-  const title = titleForSeries(series, titleMap);
-  if (!title) return { available: false, reason: 'No explicit title mapping' };
-  const { HttpClient, AnikotoProvider } = sdk ?? await import('anime-sdk');
-  const provider = new AnikotoProvider(new HttpClient({ timeoutMs: 8000 }));
-  const results = await provider.search(title);
-  const matches = exactTitleMatches(results, title);
-  if (matches.length !== 1) {
-    return { available: false, reason: matches.length ? 'Ambiguous title match' : 'No exact title match', matches: matches.length };
+console.log('================================');
+console.log('HOSHI AUTO MATCH DIAGNOSTIC V2');
+console.log('================================');
+
+const series = 'al20';
+const episode = '1';
+
+try {
+  console.log('SERIES:', series);
+  console.log('EPISODE:', episode);
+
+  console.log('--- ANILIST LOOKUP ---');
+
+  const metadata = await fetchAniListTitles(
+    series
+  );
+
+  console.log(
+    'ANILIST AVAILABLE:',
+    metadata.available
+  );
+
+  console.log(
+    'TITLES:',
+    JSON.stringify(metadata.titles || [])
+  );
+
+  if (!metadata.available) {
+    console.log('RESULT: ANILIST_MATCH_FAILED');
+    process.exit(0);
   }
-  const units = await provider.fetchContentUnits(matches[0].id);
-  return {
-    available: true,
-    providerId: 'anikoto',
-    mediaId: matches[0].id,
-    title,
-    units: Array.isArray(units) ? units : []
-  };
+
+  console.log('--- ANIKOTO MATCHING ---');
+
+  const anime = await matchHoshiAnime(series);
+
+  console.log(
+    'ANIKOTO MATCHED:',
+    anime.available
+  );
+
+  if (!anime.available) {
+    console.log(
+      'REASON:',
+      anime.reason || 'Unknown'
+    );
+
+    console.log('RESULT: ANIKOTO_MATCH_FAILED');
+    process.exit(0);
+  }
+
+  console.log(
+    'ANIKOTO ANIME ID:',
+    anime.animeId
+  );
+
+  console.log('--- SUB MATCH ---');
+
+  const sub = await matchHoshiEpisode(
+    series,
+    episode,
+    'sub'
+  );
+
+  console.log(
+    'SUB AVAILABLE:',
+    sub.available
+  );
+
+  if (sub.available) {
+    console.log(
+      'SUB EPISODE ID:',
+      sub.episodeId
+    );
+
+    console.log(
+      'TOTAL EPISODES:',
+      sub.totalEpisodes
+    );
+  } else {
+    console.log(
+      'SUB REASON:',
+      sub.reason || 'Unknown'
+    );
+  }
+
+  console.log('--- DUB MATCH ---');
+
+  const dub = await matchHoshiEpisode(
+    series,
+    episode,
+    'dub'
+  );
+
+  console.log(
+    'DUB AVAILABLE:',
+    dub.available
+  );
+
+  if (dub.available) {
+    console.log(
+      'DUB EPISODE ID:',
+      dub.episodeId
+    );
+  } else {
+    console.log(
+      'DUB REASON:',
+      dub.reason || 'Unknown'
+    );
+  }
+
+  console.log(
+    'RESULT:',
+    sub.available && dub.available
+      ? 'AUTO_MATCH_SUCCESS'
+      : sub.available || dub.available
+        ? 'PARTIAL_MATCH_SUCCESS'
+        : 'EPISODE_MATCH_FAILED'
+  );
+} catch (error) {
+  console.log('RESULT: AUTO_MATCH_ERROR');
+
+  console.log(
+    'ERROR:',
+    String(error?.message || error)
+      .slice(0, 180)
+  );
 }
 
-// Stream resolution is deliberately separate from discovery. Only call this
-// for titles whose playback rights and the provider's terms you have verified.
-export async function resolvePermittedUnit(unitId, language, { sdk } = {}) {
-  if (process.env.ANIKOTO_DIRECT_ENABLED !== 'true') return null;
-  if (!['sub', 'dub'].includes(language) || typeof unitId !== 'string' || !unitId.startsWith('anikoto:')) return null;
-  const { HttpClient, AnikotoProvider } = sdk ?? await import('anime-sdk');
-  const provider = new AnikotoProvider(new HttpClient({ timeoutMs: 8000 }));
-  return provider.resolveStream(unitId, language);
-}
+console.log('================================');
+console.log('No stream URLs requested.');
+console.log('No video files downloaded.');
+console.log('================================');
