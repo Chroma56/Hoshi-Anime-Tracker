@@ -1,63 +1,34 @@
 
 import http from 'node:http';
+import https from 'node:https';
+import dns from 'node:dns/promises';
+import net from 'node:net';
+import crypto from 'node:crypto';
+import { pipeline } from 'node:stream/promises';
 import { providerEntry } from './provider-adapter.mjs';
 
-// Hoshi Stream Backend V3.1
-// Keep provider-adapter.mjs unchanged.
+// Hoshi Backend V3.2
+// Signed media relay for authorised HTTPS streaming sources.
+// Original implementation based on architectural ideas from PlayzAnime.
 
 const PORT = Number(process.env.PORT || 3000);
 const BACKEND_TOKEN = process.env.BACKEND_TOKEN || '';
+const ORIGIN = 'https://chroma56.github.io';
+const MAX_PLAYLIST = 1024 * 1024;
+const MAX_MEDIA = 64 * 1024 * 1024;
 
-function splitHosts(value) {
-  return new Set(
-    String(value || '')
-      .split(',')
-      .map(function (host) {
-        return host.trim().toLowerCase();
-      })
-      .filter(Boolean)
-  );
-}
+const HOSTS = new Set(
+  String(process.env.MEDIA_HOSTS || '')
+    .split(',')
+    .map(x => x.trim().toLowerCase())
+    .filter(Boolean)
+);
 
-function mediaHosts() {
-  return splitHosts(process.env.MEDIA_HOSTS);
-}
+const RELAY_ON = process.env.HOSHI_RELAY_ENABLED === 'true';
+const RELAY_KEY = process.env.RELAY_SIGNING_KEY || '';
+const RELAY_BASE = process.env.RELAY_PUBLIC_BASE || '';
 
-function readCatalog() {
-  try {
-    const value = JSON.parse(
-      process.env.STREAM_CATALOG || '{}'
-    );
-
-    return value &&
-      typeof value === 'object' &&
-      !Array.isArray(value)
-      ? value
-      : {};
-  } catch (error) {
-    return {};
-  }
-}
-
-function providerIsConfigured() {
-  try {
-    const endpoint = new URL(
-      process.env.PROVIDER_API_URL || ''
-    );
-
-    return (
-      endpoint.protocol === 'https:' &&
-      !endpoint.username &&
-      !endpoint.password &&
-      splitHosts(process.env.PROVIDER_HOSTS)
-        .has(endpoint.hostname.toLowerCase())
-    );
-  } catch (error) {
-    return false;
-  }
-}
-
-function sendJson(res, status, body) {
+function json(res, status, body) {
   res.writeHead(status, {
     'Content-Type': 'application/json; charset=utf-8',
     'Cache-Control': 'no-store',
@@ -67,351 +38,573 @@ function sendJson(res, status, body) {
   res.end(JSON.stringify(body));
 }
 
-function safeMediaUrl(value, extension) {
+function catalog() {
   try {
-    const url = new URL(value);
+    const c = JSON.parse(
+      process.env.STREAM_CATALOG || '{}'
+    );
+
+    return c && typeof c === 'object' && !Array.isArray(c)
+      ? c
+      : {};
+  } catch {
+    return {};
+  }
+}
+
+function hostAllowed(value, extension) {
+  try {
+    const u = new URL(value);
 
     if (
-      url.protocol !== 'https:' ||
-      url.username ||
-      url.password ||
-      url.hash
-    ) {
+      u.protocol !== 'https:' ||
+      u.port ||
+      u.username ||
+      u.password ||
+      u.hash ||
+      !HOSTS.has(u.hostname.toLowerCase())
+    ) return null;
+
+    if (
+      net.isIP(u.hostname) ||
+      u.hostname.toLowerCase() === 'localhost'
+    ) return null;
+
+    if (extension && !extension.test(u.pathname)) {
       return null;
     }
 
-    if (!mediaHosts().has(url.hostname.toLowerCase())) {
-      return null;
-    }
-
-    if (extension && !extension.test(url.pathname)) {
-      return null;
-    }
-
-    return url.href;
-  } catch (error) {
+    return u.href;
+  } catch {
     return null;
   }
 }
 
-function parseAttributes(line) {
+function subtitles(input) {
+  return (Array.isArray(input) ? input : [])
+    .slice(0, 20)
+    .map(t => {
+      const url = hostAllowed(t?.url, /\.vtt$/i);
+
+      return url ? {
+        url,
+        lang: String(t.lang || 'en').slice(0, 16),
+        label: String(
+          t.label || t.lang || 'Subtitles'
+        ).slice(0, 80)
+      } : null;
+    })
+    .filter(Boolean);
+}
+
+function attrs(line) {
   const result = {};
-  const regex = /([A-Z0-9-]+)=("[^"]*"|[^,]*)/g;
-  let match;
 
-  while ((match = regex.exec(line)) !== null) {
-    const value = match[2];
-
-    result[match[1]] =
-      value.charAt(0) === '"'
-        ? value.slice(1, -1)
-        : value;
+  for (const m of line.matchAll(
+    /([A-Z0-9-]+)=("[^"]*"|[^,]*)/g
+  )) {
+    result[m[1]] = m[2].startsWith('"')
+      ? m[2].slice(1, -1)
+      : m[2];
   }
 
   return result;
 }
 
-function parseMasterPlaylist(text, masterUrl) {
+function parseMaster(text, source) {
   const qualities = [];
-  const subtitles = [];
+  const subs = [];
 
-  const lines = String(text)
-    .split(/\r?\n/)
-    .map(function (line) {
-      return line.trim();
-    })
+  const lines = text.split(/\r?\n/)
+    .map(x => x.trim())
     .filter(Boolean);
 
   if (lines[0] !== '#EXTM3U') {
-    return {
-      qualities: qualities,
-      subtitles: subtitles
-    };
+    return { qualities, subtitles: subs };
   }
 
-  for (let i = 0; i < lines.length; i += 1) {
+  for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
 
     if (line.startsWith('#EXT-X-STREAM-INF:')) {
-      const attr = parseAttributes(
-        line.slice('#EXT-X-STREAM-INF:'.length)
-      );
-
+      const a = attrs(line.slice(18));
       const next = lines[i + 1];
 
-      if (!next || next.startsWith('#')) {
-        continue;
-      }
+      if (!next || next.startsWith('#')) continue;
+
+      let url;
 
       try {
-        const candidate = new URL(
-          next,
-          masterUrl
-        ).href;
-
-        const url = safeMediaUrl(
-          candidate,
+        url = hostAllowed(
+          new URL(next, source).href,
           /\.m3u8$/i
         );
+      } catch {}
 
-        if (!url) {
-          continue;
-        }
+      if (!url) continue;
 
-        const height =
-          Number(
-            (attr.RESOLUTION || '').split('x')[1]
-          ) || 0;
+      const height = Number(
+        (a.RESOLUTION || '').split('x')[1]
+      ) || 0;
 
-        const bandwidth =
-          Number(attr.BANDWIDTH) || 0;
-
-        qualities.push({
-          url: url,
-          label: height
-            ? String(height) + 'p'
-            : 'Auto',
-          height: height,
-          bandwidth: bandwidth
-        });
-      } catch (error) {
-        continue;
-      }
+      qualities.push({
+        url,
+        label: height ? String(height) + 'p' : 'Auto',
+        height,
+        bandwidth: Number(a.BANDWIDTH) || 0
+      });
     }
 
     if (line.startsWith('#EXT-X-MEDIA:')) {
-      const attr = parseAttributes(
-        line.slice('#EXT-X-MEDIA:'.length)
-      );
+      const a = attrs(line.slice(13));
 
       if (
-        attr.TYPE !== 'SUBTITLES' ||
-        !attr.URI
-      ) {
-        continue;
-      }
+        a.TYPE !== 'SUBTITLES' ||
+        !a.URI
+      ) continue;
+
+      let url;
 
       try {
-        const candidate = new URL(
-          attr.URI,
-          masterUrl
-        ).href;
-
-        const url = safeMediaUrl(
-          candidate,
+        url = hostAllowed(
+          new URL(a.URI, source).href,
           /\.vtt$/i
         );
+      } catch {}
 
-        if (!url) {
-          continue;
-        }
-
-        subtitles.push({
-          url: url,
-          lang: String(
-            attr.LANGUAGE || 'en'
-          ).slice(0, 16),
+      if (url) {
+        subs.push({
+          url,
+          lang: String(a.LANGUAGE || 'en').slice(0, 16),
           label: String(
-            attr.NAME ||
-            attr.LANGUAGE ||
-            'Subtitles'
+            a.NAME || 'Subtitles'
           ).slice(0, 80)
         });
-      } catch (error) {
-        continue;
       }
     }
   }
 
-  qualities.sort(function (a, b) {
-    return (
-      b.height - a.height ||
+  qualities.sort(
+    (a, b) => b.height - a.height ||
       b.bandwidth - a.bandwidth
-    );
-  });
+  );
 
   return {
-    qualities: qualities
-      .filter(function (item, index, list) {
-        return list.findIndex(function (x) {
-          return x.url === item.url;
-        }) === index;
-      })
-      .slice(0, 12),
+    qualities: qualities.filter(
+      (q, i, a) =>
+        a.findIndex(x => x.url === q.url) === i
+    ).slice(0, 12),
 
-    subtitles: subtitles
-      .filter(function (item, index, list) {
-        return list.findIndex(function (x) {
-          return x.url === item.url;
-        }) === index;
-      })
-      .slice(0, 20)
+    subtitles: subs.filter(
+      (t, i, a) =>
+        a.findIndex(x => x.url === t.url) === i
+    ).slice(0, 20)
   };
 }
 
-async function readMasterPlaylist(url) {
-  const empty = {
-    qualities: [],
-    subtitles: []
-  };
+// Block private and reserved IP address ranges.
+const BLOCK = new net.BlockList();
 
-  try {
-    const response = await fetch(url, {
-      redirect: 'error',
-      headers: {
-        Accept:
-          'application/vnd.apple.mpegurl, application/x-mpegURL, text/plain'
-      },
-      signal: AbortSignal.timeout(3500)
-    });
-
-    if (!response.ok) {
-      return empty;
-    }
-
-    if (
-      Number(
-        response.headers.get('content-length') || 0
-      ) > 262144
-    ) {
-      return empty;
-    }
-
-    const reader =
-      response.body &&
-      response.body.getReader();
-
-    if (!reader) {
-      return empty;
-    }
-
-    const chunks = [];
-    let size = 0;
-
-    while (true) {
-      const part = await reader.read();
-
-      if (part.done) {
-        break;
-      }
-
-      size += part.value.byteLength;
-
-      if (size > 262144) {
-        await reader.cancel();
-        return empty;
-      }
-
-      chunks.push(Buffer.from(part.value));
-    }
-
-    return parseMasterPlaylist(
-      Buffer.concat(chunks).toString('utf8'),
-      url
-    );
-  } catch (error) {
-    return empty;
-  }
+for (const [ip, bits] of [
+  ['0.0.0.0', 8],
+  ['10.0.0.0', 8],
+  ['100.64.0.0', 10],
+  ['127.0.0.0', 8],
+  ['169.254.0.0', 16],
+  ['172.16.0.0', 12],
+  ['192.168.0.0', 16],
+  ['192.0.0.0', 24],
+  ['198.18.0.0', 15],
+  ['224.0.0.0', 4],
+  ['240.0.0.0', 4]
+]) {
+  BLOCK.addSubnet(ip, bits, 'ipv4');
 }
 
-function validatedSubtitles(value) {
-  if (!Array.isArray(value)) {
-    return [];
-  }
-
-  return value
-    .slice(0, 20)
-    .map(function (track) {
-      const url = safeMediaUrl(
-        track && track.url,
-        /\.vtt$/i
-      );
-
-      if (!url) {
-        return null;
-      }
-
-      return {
-        url: url,
-        lang: String(
-          track.lang || 'en'
-        ).slice(0, 16),
-        label: String(
-          track.label ||
-          track.lang ||
-          'Subtitles'
-        ).slice(0, 80)
-      };
-    })
-    .filter(Boolean);
+for (const [ip, bits] of [
+  ['::', 128],
+  ['::1', 128],
+  ['fc00::', 7],
+  ['fe80::', 10],
+  ['ff00::', 8],
+  ['2001:db8::', 32]
+]) {
+  BLOCK.addSubnet(ip, bits, 'ipv6');
 }
 
-function unavailable(reason) {
-  return {
-    type: 'embed',
-    available: false,
-    reason:
-      reason ||
-      'No authorised direct stream registered'
-  };
+function publicIp(ip) {
+  const family = net.isIP(ip);
+
+  if (!family) return false;
+
+  if (family === 4) {
+    return !BLOCK.check(ip, 'ipv4');
+  }
+
+  const match =
+    /^(?:::ffff:|64:ff9b::)(\d+\.\d+\.\d+\.\d+)$/i
+      .exec(ip);
+
+  if (match) return publicIp(match[1]);
+
+  return !BLOCK.check(ip, 'ipv6');
 }
 
-async function resolveStream(
-  series,
-  episode,
-  lang
-) {
-  const catalog = readCatalog();
-  const key =
-    series + ':' + episode + ':' + lang;
+// Pin the upstream connection to a checked DNS address.
+async function upstream(url, range) {
+  const parsed = new URL(url);
 
-  let raw =
-    Object.prototype.hasOwnProperty.call(
-      catalog,
-      key
-    )
-      ? catalog[key]
-      : null;
-
-  if (!raw) {
-    try {
-      raw = await providerEntry(
-        series,
-        episode,
-        lang
-      );
-    } catch (error) {
-      console.error(
-        'Provider lookup failed:',
-        error && error.message
-          ? error.message
-          : 'unknown error'
-      );
-
-      return unavailable(
-        'Direct stream provider unavailable'
-      );
-    }
-  }
-
-  if (!raw || raw.available === false) {
-    return unavailable();
-  }
-
-  const format =
-    raw.format === 'hls' ||
-    raw.format === 'mp4'
-      ? raw.format
-      : raw.type;
+  const all = await dns.lookup(
+    parsed.hostname,
+    { all: true }
+  );
 
   if (
-    format !== 'hls' &&
-    format !== 'mp4'
+    !all.length ||
+    all.some(a => !publicIp(a.address))
   ) {
-    return unavailable();
+    throw Error('Unsafe DNS destination');
   }
 
-  const url = safeMediaUrl(
+  const target = all[0];
+
+  return new Promise((resolve, reject) => {
+    const req = https.request(parsed, {
+      method: 'GET',
+      timeout: 12000,
+      lookup: (_host, _opts, cb) => {
+        cb(null, target.address, target.family);
+      },
+      headers: {
+        Accept: '*/*',
+        ...(range ? { Range: range } : {})
+      }
+    }, res => resolve(res));
+
+    req.on('timeout', () => {
+      req.destroy(Error('Upstream timeout'));
+    });
+
+    req.on('error', reject);
+    req.end();
+  });
+}
+
+async function readLimited(stream, max) {
+  let length = 0;
+  const chunks = [];
+
+  for await (const piece of stream) {
+    length += piece.length;
+
+    if (length > max) {
+      stream.destroy();
+      throw Error('Response too large');
+    }
+
+    chunks.push(piece);
+  }
+
+  return Buffer.concat(chunks).toString('utf8');
+}
+
+function signingReady() {
+  try {
+    const u = new URL(RELAY_BASE);
+
+    return (
+      RELAY_ON &&
+      RELAY_KEY.length >= 32 &&
+      u.protocol === 'https:' &&
+      !u.username &&
+      !u.password &&
+      !u.hash &&
+      !u.search
+    );
+  } catch {
+    return false;
+  }
+}
+
+function mac(url, exp) {
+  return crypto.createHmac(
+    'sha256',
+    RELAY_KEY
+  ).update(url + '\n' + exp).digest('hex');
+}
+
+function signedLink(url, exp) {
+  if (!hostAllowed(url)) {
+    throw Error('Host not approved');
+  }
+
+  const u = new URL('/media', RELAY_BASE);
+
+  u.searchParams.set('u', url);
+  u.searchParams.set('exp', String(exp));
+  u.searchParams.set('sig', mac(url, exp));
+
+  return u.href;
+}
+
+function validSignature(url, exp, sig) {
+  const now = Math.floor(Date.now() / 1000);
+
+  if (
+    !/^\d{10}$/.test(exp) ||
+    Number(exp) < now ||
+    Number(exp) > now + 15000 ||
+    !/^[0-9a-f]{64}$/.test(sig)
+  ) {
+    return false;
+  }
+
+  return crypto.timingSafeEqual(
+    Buffer.from(mac(url, exp), 'hex'),
+    Buffer.from(sig, 'hex')
+  );
+}
+
+function rewritePlaylist(text, origin, exp) {
+  return text.split(/\r?\n/).map(line => {
+    if (!line.trim()) return line;
+
+    if (line.startsWith('#')) {
+      return line.replace(
+        /URI="([^"]+)"/g,
+        (_match, raw) => {
+          try {
+            const url = hostAllowed(
+              new URL(raw, origin).href
+            );
+
+            return url
+              ? 'URI="' + signedLink(url, exp) + '"'
+              : 'URI=""';
+          } catch {
+            return 'URI=""';
+          }
+        }
+      );
+    }
+
+    try {
+      const url = hostAllowed(
+        new URL(line.trim(), origin).href
+      );
+
+      return url ? signedLink(url, exp) : '';
+    } catch {
+      return '';
+    }
+  }).join('\n');
+}
+
+function cors() {
+  return {
+    'Access-Control-Allow-Origin': ORIGIN,
+    'Access-Control-Allow-Methods':
+      'GET, HEAD, OPTIONS',
+    'Access-Control-Allow-Headers': 'Range',
+    'Access-Control-Expose-Headers':
+      'Accept-Ranges, Content-Length, Content-Range, Content-Type',
+    'Vary': 'Origin',
+    'X-Content-Type-Options': 'nosniff'
+  };
+}
+
+async function media(req, res, url) {
+  if (!signingReady()) {
+    return json(res, 404, {
+      error: 'Relay disabled'
+    });
+  }
+
+  if (req.method === 'OPTIONS') {
+    res.writeHead(204, cors());
+    return res.end();
+  }
+
+  if (req.method !== 'GET') {
+    return json(res, 405, {
+      error: 'Method not allowed'
+    });
+  }
+
+  const target = url.searchParams.get('u') || '';
+  const exp = url.searchParams.get('exp') || '';
+  const sig = url.searchParams.get('sig') || '';
+
+  if (
+    !hostAllowed(target) ||
+    !validSignature(target, exp, sig)
+  ) {
+    return json(res, 403, {
+      error: 'Invalid or expired media link'
+    });
+  }
+
+  const range = req.headers.range;
+
+  if (
+    range &&
+    !/^bytes=\d+-\d*$/.test(range)
+  ) {
+    return json(res, 400, {
+      error: 'Invalid byte range'
+    });
+  }
+
+  try {
+    const source = await upstream(target, range);
+
+    if (![200, 206].includes(source.statusCode)) {
+      source.resume();
+      return json(res, 502, {
+        error: 'Upstream media unavailable'
+      });
+    }
+
+    const playlist = /\.m3u8$/i.test(
+      new URL(target).pathname
+    );
+
+    if (playlist) {
+      const content = await readLimited(
+        source,
+        MAX_PLAYLIST
+      );
+
+      if (!content.startsWith('#EXTM3U')) {
+        return json(res, 502, {
+          error: 'Invalid HLS playlist'
+        });
+      }
+
+      const output = rewritePlaylist(
+        content,
+        target,
+        exp
+      );
+
+      res.writeHead(200, {
+        ...cors(),
+        'Content-Type':
+          'application/vnd.apple.mpegurl',
+        'Cache-Control': 'no-store'
+      });
+
+      return res.end(output);
+    }
+
+    const size = Number(
+      source.headers['content-length'] || 0
+    );
+
+    if (size > MAX_MEDIA) {
+      source.destroy();
+
+      return json(res, 413, {
+        error: 'Media object too large'
+      });
+    }
+
+    const headers = {
+      ...cors(),
+      'Cache-Control': 'private, max-age=60'
+    };
+
+    for (const k of [
+      'content-type',
+      'content-length',
+      'content-range',
+      'accept-ranges'
+    ]) {
+      if (source.headers[k]) {
+        headers[k] = source.headers[k];
+      }
+    }
+
+    res.writeHead(source.statusCode, headers);
+
+    let transferred = 0;
+
+    source.on('data', chunk => {
+      transferred += chunk.length;
+
+      if (transferred > MAX_MEDIA) {
+        source.destroy(
+          Error('Media limit exceeded')
+        );
+      }
+    });
+
+    await pipeline(source, res);
+  } catch (error) {
+    if (!res.headersSent) {
+      json(res, 502, {
+        error: 'Media relay failed'
+      });
+    } else {
+      res.destroy();
+    }
+  }
+}
+
+async function masterInfo(url) {
+  try {
+    const stream = await upstream(url);
+
+    if (stream.statusCode !== 200) {
+      stream.resume();
+
+      return {
+        qualities: [],
+        subtitles: []
+      };
+    }
+
+    return parseMaster(
+      await readLimited(stream, MAX_PLAYLIST),
+      url
+    );
+  } catch {
+    return {
+      qualities: [],
+      subtitles: []
+    };
+  }
+}
+
+async function resolve(series, episode, lang) {
+  const cat = catalog();
+  const key = series + ':' + episode + ':' + lang;
+
+  let raw = Object.hasOwn(cat, key)
+    ? cat[key]
+    : null;
+
+  if (!raw) {
+    raw = await providerEntry(
+      series,
+      episode,
+      lang
+    );
+  }
+
+  const format = ['hls', 'mp4'].includes(
+    raw?.format
+  ) ? raw.format : raw?.type;
+
+  if (!['hls', 'mp4'].includes(format)) {
+    return {
+      type: 'embed',
+      available: false,
+      reason: 'No authorised direct stream registered'
+    };
+  }
+
+  const url = hostAllowed(
     raw.url,
     format === 'hls'
       ? /\.m3u8$/i
@@ -419,82 +612,125 @@ async function resolveStream(
   );
 
   if (!url) {
-    return unavailable(
-      'Stream URL invalid or host missing from MEDIA_HOSTS'
+    return {
+      type: 'embed',
+      available: false,
+      reason: 'Stream host is not allowlisted'
+    };
+  }
+
+  const info = format === 'hls'
+    ? await masterInfo(url)
+    : {
+        qualities: [],
+        subtitles: []
+      };
+
+  const subs = subtitles(
+    raw.subtitles
+  ).concat(
+    info.subtitles
+  ).filter(
+    (v, i, a) =>
+      a.findIndex(x => x.url === v.url) === i
+  ).slice(0, 20);
+
+  const result = {
+    type: 'direct',
+    available: true,
+    format,
+    url,
+    subtitles: subs,
+    qualities: info.qualities
+  };
+
+  if (signingReady()) {
+    const exp =
+      Math.floor(Date.now() / 1000) + 14400;
+
+    result.url = signedLink(
+      result.url,
+      exp
+    );
+
+    result.qualities = result.qualities.map(
+      q => ({
+        ...q,
+        url: signedLink(q.url, exp)
+      })
+    );
+
+    result.subtitles = result.subtitles.map(
+      t => ({
+        ...t,
+        url: signedLink(t.url, exp)
+      })
     );
   }
 
-  const playlist =
-    format === 'hls'
-      ? await readMasterPlaylist(url)
-      : {
-          qualities: [],
-          subtitles: []
-        };
-
-  const subtitles = validatedSubtitles(
-    raw.subtitles
-  );
-
-  const existingUrls = new Set(
-    subtitles.map(function (track) {
-      return track.url;
-    })
-  );
-
-  for (const track of playlist.subtitles) {
-    if (!existingUrls.has(track.url)) {
-      subtitles.push(track);
-      existingUrls.add(track.url);
-    }
-  }
-
-  return {
-    type: 'direct',
-    available: true,
-    format: format,
-    url: url,
-    subtitles: subtitles.slice(0, 20),
-    qualities: playlist.qualities
-  };
+  return result;
 }
 
 const server = http.createServer(
-  async function (req, res) {
+  async (req, res) => {
     try {
-      const url = new URL(
+      const u = new URL(
         req.url || '/',
         'http://localhost'
       );
 
+      if (u.pathname === '/media') {
+        return await media(req, res, u);
+      }
+
       if (req.method !== 'GET') {
-        return sendJson(res, 405, {
+        return json(res, 405, {
           error: 'Method not allowed'
         });
       }
 
-      if (url.pathname === '/health') {
-        const catalogEntries =
-          Object.keys(readCatalog()).length;
+      if (u.pathname === '/health') {
+        const entries = Object.keys(
+          catalog()
+        ).length;
 
-        const providerConfigured =
-          providerIsConfigured();
+        let providerConfigured = false;
 
-        return sendJson(res, 200, {
+        try {
+          const p = new URL(
+            process.env.PROVIDER_API_URL || ''
+          );
+
+          const hosts = new Set(
+            String(
+              process.env.PROVIDER_HOSTS || ''
+            ).split(',')
+              .map(x => x.trim().toLowerCase())
+          );
+
+          providerConfigured =
+            p.protocol === 'https:' &&
+            !p.username &&
+            !p.password &&
+            !p.hash &&
+            !p.search &&
+            hosts.has(p.hostname.toLowerCase());
+        } catch {}
+
+        return json(res, 200, {
           ok: true,
           service: 'hoshi-node',
-          version: '3.1',
+          version: '3.2',
           configured:
-            catalogEntries > 0 ||
-            providerConfigured,
-          catalogEntries: catalogEntries,
-          providerConfigured:
-            providerConfigured
+            entries > 0 || providerConfigured,
+          catalogEntries: entries,
+          providerConfigured,
+          mediaRelayEnabled: signingReady()
         });
       }
 
-      if (url.pathname !== '/resolve') {
-        return sendJson(res, 404, {
+      if (u.pathname !== '/resolve') {
+        return json(res, 404, {
           error: 'Not found'
         });
       }
@@ -504,56 +740,48 @@ const server = http.createServer(
         req.headers.authorization !==
           'Bearer ' + BACKEND_TOKEN
       ) {
-        return sendJson(res, 401, {
+        return json(res, 401, {
           error: 'Unauthorized'
         });
       }
 
       const series =
-        url.searchParams.get('series') || '';
+        u.searchParams.get('series') || '';
 
       const episode =
-        url.searchParams.get('episode') || '';
+        u.searchParams.get('episode') || '';
 
       const lang =
-        url.searchParams.get('lang') ||
-        'sub';
+        u.searchParams.get('lang') || 'sub';
 
       if (
         !/^[A-Za-z0-9_-]{1,60}$/.test(series) ||
-        !/^[0-9]{1,5}(?:\.[0-9]{1,2})?$/.test(episode) ||
-        (lang !== 'sub' && lang !== 'dub')
+        !/^\d{1,5}(?:\.\d{1,2})?$/.test(episode) ||
+        !['sub', 'dub'].includes(lang)
       ) {
-        return sendJson(res, 400, {
-          error:
-            'Invalid series, episode, or lang'
+        return json(res, 400, {
+          error: 'Invalid parameters'
         });
       }
 
-      return sendJson(
+      return json(
         res,
         200,
-        await resolveStream(
-          series,
-          episode,
-          lang
-        )
+        await resolve(series, episode, lang)
       );
     } catch (error) {
       console.error(
         'Hoshi request error:',
-        error && error.message
-          ? error.message
-          : 'unknown error'
+        error?.message
       );
 
       if (!res.headersSent) {
-        return sendJson(res, 500, {
-          error: 'Internal server error'
+        json(res, 500, {
+          error: 'Server error'
         });
+      } else {
+        res.destroy();
       }
-
-      res.end();
     }
   }
 );
@@ -562,10 +790,10 @@ if (process.env.NODE_ENV !== 'test') {
   server.listen(
     PORT,
     '0.0.0.0',
-    function () {
+    () => {
       console.log(
-        'Hoshi stream metadata backend v3.1 listening on ' +
-          PORT
+        'Hoshi stream backend v3.2 listening on ' +
+        PORT
       );
     }
   );
@@ -573,6 +801,7 @@ if (process.env.NODE_ENV !== 'test') {
 
 export {
   server,
-  resolveStream,
-  parseMasterPlaylist
+  resolve,
+  parseMaster,
+  rewritePlaylist
 };
