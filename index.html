@@ -259,6 +259,9 @@ h2{font:800 24px "Bricolage Grotesque",sans-serif;margin:36px 0 2px}
 .vbar .rdrselect{max-width:220px;min-width:115px}
 .rdrselect:disabled{opacity:.45;cursor:not-allowed}
 @media(max-width:680px){.vbar .rdrselect{max-width:calc(50% - 4px);flex:1}.vbar .vfind{min-width:130px}}
+/* Small status label stays visible while an embed is playing. */
+.hdp-source-state{font-size:11px;color:var(--mute);white-space:nowrap;max-width:240px;overflow:hidden;text-overflow:ellipsis}
+@media(max-width:700px){.hdp-source-state{order:4;width:100%;max-width:none;text-align:left}}
 /* Hoshi Direct Player: HTML5/HLS with independent subtitle settings */
 .hdp-actions{display:flex;gap:7px;align-items:center;flex-wrap:wrap;margin-left:auto}
 .hdp-panel{border-top:1px solid var(--line);padding:12px;background:#111115;display:grid;gap:10px}
@@ -883,6 +886,10 @@ function detail(a, wantEp) {
   close.setAttribute("aria-label", "Close player");
   [plt, prev, next, close].forEach(function(e) { plh.appendChild(e); });
   var frame = mk("div", "vframe");
+  var sourceState = mk("span", "hdp-source-state", "Checking source…");
+  sourceState.setAttribute("role", "status");
+  sourceState.setAttribute("aria-live", "polite");
+  plh.appendChild(sourceState);
   var directButton = mk("button", "vbtn sm", "Direct Player");
   directButton.type = "button";
   directButton.title = "Use Hoshi's player for a playable MP4 or HLS stream";
@@ -986,8 +993,16 @@ function detail(a, wantEp) {
     if (localSubtitleUrl) { URL.revokeObjectURL(localSubtitleUrl); localSubtitleUrl = null; }
   }
   function safeDirectUrl(value) {
-    try { var u = new URL(value); return u.protocol === "https:" ? u.href : ""; }
-    catch(e) { return ""; }
+    try {
+      var u = new URL(value);
+      if (u.protocol !== "https:" || u.username || u.password || u.hash) return "";
+      return u.href;
+    } catch(e) { return ""; }
+  }
+  function isDirectMediaUrl(value) {
+    try {
+      return /\.(?:m3u8|mp4|m4v)$/i.test(new URL(value).pathname);
+    } catch(e) { return false; }
   }
   // Only accept explicit HLS/MP4 URLs or typed direct-stream entries from an API.
   // A website/embed link is never a usable HTML5 video stream.
@@ -1099,7 +1114,10 @@ function detail(a, wantEp) {
     var episodeNumber = String(epNum(ep, index));
     if (!seriesId || !/^\d+(?:\.\d+)?$/.test(episodeNumber)) return Promise.resolve(null);
     var q = "?series=" + encodeURIComponent(seriesId) + "&episode=" + encodeURIComponent(episodeNumber) + "&lang=" + encodeURIComponent(selectedLang);
-    return fetch(STREAM_API_BASE + "/resolve" + q, { headers: { "Accept": "application/json" } })
+    return fetch(STREAM_API_BASE + "/resolve" + q, {
+      headers: { "Accept": "application/json" },
+      signal: typeof AbortSignal !== "undefined" && AbortSignal.timeout ? AbortSignal.timeout(8000) : undefined
+    })
       .then(function(r) { if (!r.ok) throw Error("Stream API HTTP " + r.status); return r.json(); })
       .then(function(v) {
         if (!v || v.type !== "direct" || v.available !== true) return null;
@@ -1119,12 +1137,18 @@ function detail(a, wantEp) {
     f.src = u; f.title = "Episode " + epNum(currentEpisode, curIdx);
     f.allow = "autoplay; encrypted-media; picture-in-picture; fullscreen"; f.allowFullscreen = true;
     frame.appendChild(f);
+    sourceState.textContent = "Embed · Direct failed";
     message("Direct stream unavailable. Switched to working embedded player.");
   }
   function loadDirect(url) {
     url = safeDirectUrl(url);
-    if (!url) { message("Enter a valid HTTPS video URL (.mp4 or .m3u8)."); return; }
+    if (!url || !isDirectMediaUrl(url)) {
+      directPanel.hidden = false;
+      message("That is not a direct video URL. Use an HTTPS .mp4 or .m3u8 link, not a Hoshi episode page or embed link.");
+      return;
+    }
     destroyDirect(); directMode = true; currentDirectUrl = url; directPanel.hidden = false;
+    sourceState.textContent = "Direct stream";
     frame.innerHTML = "";
     var stage = mk("div", "hdp-stage");
     var video = mk("video", "hdp-video"); video.controls = true; video.playsInline = true;
@@ -1245,6 +1269,7 @@ function detail(a, wantEp) {
     pl.hidden = false;
     plt.textContent = "Episode " + n + " \u00b7 " + lang.toUpperCase();
     frame.innerHTML = "";
+    sourceState.textContent = direct ? "Direct source found" : (u ? "Checking direct source…" : "No embed source");
     // Prefer direct playback only for explicitly supplied playable media URLs.
     // Keep the working embed available if the direct source fails or is unwanted.
     if (direct && !preferEmbed) {
@@ -1256,7 +1281,8 @@ function detail(a, wantEp) {
       f.src = u; f.title = "Episode " + n;
       f.allow = "autoplay; encrypted-media; picture-in-picture; fullscreen"; f.allowFullscreen = true;
       frame.appendChild(f);
-      message("Embedded player active. This source does not expose a controllable subtitle track.");
+      message("Embedded player active. Custom subtitle controls cannot control this iframe.");
+      if (preferEmbed) sourceState.textContent = "Embed · Selected";
     } else {
       directPanel.hidden = false;
       loadDirect(direct);
@@ -1265,7 +1291,12 @@ function detail(a, wantEp) {
     var lookupId = ++streamLookupToken;
     if (!direct && !preferEmbed) {
       lookUpHoshiStream(ep, i, lang).then(function(found) {
-        if (!found || lookupId !== streamLookupToken || curIdx !== i || preferEmbed || directMode) return;
+        if (lookupId !== streamLookupToken || curIdx !== i || preferEmbed || directMode) return;
+        if (!found) {
+          sourceState.textContent = "Embed · No direct stream";
+          return;
+        }
+        sourceState.textContent = "Direct source found";
         // Combine subtitle metadata without mutating the source episode.
         currentEpisode = Object.assign({}, ep, { subtitles: found.subtitles });
         directInput.value = found.url;
