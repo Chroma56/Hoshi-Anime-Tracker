@@ -1,12 +1,11 @@
 
 /*
- * Hoshi MegaPlay Diagnostic V1
+ * Hoshi MegaPlay Resolver Diagnostic V2
  *
- * Tests SDK search, episode lookup and
- * video-source metadata resolution.
+ * Tests Naruto episode 1 SUB/DUB resolution.
+ * Reports sanitised errors, not raw error messages.
  *
- * Does not download or proxy video.
- * Does not print media URLs or tokens.
+ * No video downloads, proxies, or credentials.
  */
 
 import {
@@ -15,103 +14,131 @@ import {
 } from 'anime-sdk';
 
 const TITLE = 'Naruto';
+const ANILIST_ID = 20;
 const EPISODE = 1;
 
-console.log('================================');
-console.log('HOSHI MEGAPLAY DIAGNOSTIC V1');
-console.log('================================');
+function classify(error) {
+  const name = String(error?.name || 'Error');
 
-function normalize(value) {
-  return String(value || '')
-    .normalize('NFKC')
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, ' ')
-    .trim();
-}
+  // Used for classification only.
+  // Never print the raw message or stack.
+  const message = String(error?.message || '');
+  const text = message.toLowerCase();
 
-function titleMatches(item, wanted) {
-  const values = [
-    item?.title,
-    item?.name,
-    item?.englishTitle,
-    item?.romajiTitle
-  ];
+  const statusValue =
+    error?.statusCode ??
+    error?.status ??
+    error?.response?.status;
+
+  const statusNumber = Number(statusValue);
+
+  const status = Number.isInteger(statusNumber) &&
+    statusNumber >= 100 &&
+    statusNumber <= 599
+      ? statusNumber
+      : null;
+
+  let category = 'UNKNOWN_RESOLVER_ERROR';
 
   if (
-    item?.title &&
-    typeof item.title === 'object'
+    status === 401 ||
+    status === 403 ||
+    /unauthori[sz]ed|forbidden|access denied/.test(text)
   ) {
-    values.push(...Object.values(item.title));
-  }
+    category = 'ACCESS_RESTRICTED';
 
-  return values.some(value =>
-    typeof value === 'string' &&
-    normalize(value) === normalize(wanted)
-  );
-}
+  } else if (
+    status === 429 ||
+    /rate.limit|too many requests/.test(text)
+  ) {
+    category = 'RATE_LIMITED';
 
-function describeStream(stream) {
-  const source =
-    stream?.sourceUrl ||
-    stream?.url ||
-    '';
+  } else if (
+    /captcha|turnstile|challenge/.test(text)
+  ) {
+    category = 'ACCESS_CHALLENGE';
 
-  let format = 'unknown';
-
-  try {
-    const path = new URL(source).pathname;
-
-    if (/\.m3u8$/i.test(path)) {
-      format = 'hls';
-    } else if (/\.mp4$/i.test(path)) {
-      format = 'mp4';
-    } else if (source) {
-      format = 'other';
-    }
-  } catch {
-    format = 'invalid';
-  }
-
-  const headers = stream?.headers;
-
-  const headerNames =
-    headers && typeof headers === 'object'
-      ? Object.keys(headers).map(x =>
-          x.toLowerCase()
-        )
-      : [];
-
-  const tracks =
-    stream?.subtitles ||
-    stream?.tracks ||
-    [];
-
-  const subtitleList =
-    Array.isArray(tracks) ? tracks : [];
-
-  return {
-    format,
-    hasSource: Boolean(source),
-    requiresHeaders: headerNames.length > 0,
-    headerNames,
-    subtitles: subtitleList.length,
-    hasQualityLabel: Boolean(
-      stream?.quality ||
-      stream?.resolution
+  } else if (
+    /timeout|timed out|aborterror|etimedout/.test(
+      text + ' ' + name.toLowerCase()
     )
+  ) {
+    category = 'TIMEOUT';
+
+  } else if (
+    status === 404 ||
+    /not found|no mapping|not mapped|not indexed|unavailable|no stream|no source|no embed/.test(
+      text
+    )
+  ) {
+    category = 'SOURCE_NOT_AVAILABLE';
+
+  } else if (
+    /invalid json|unexpected token|json|parse|decode/.test(
+      text
+    )
+  ) {
+    category = 'PARSING_ERROR';
+
+  } else if (
+    /fetch failed|network|enotfound|econnreset|dns|eai_again|socket/.test(
+      text
+    )
+  ) {
+    category = 'NETWORK_ERROR';
+
+  } else if (
+    status !== null && status >= 500
+  ) {
+    category = 'UPSTREAM_SERVER_ERROR';
+
+  } else if (
+    status !== null
+  ) {
+    category = 'HTTP_ERROR';
+
+  }
+
+  // Fixed fields only. Never expose arbitrary
+  // upstream error strings or URLs.
+  return {
+    errorName: name.slice(0, 40),
+    category,
+    httpStatus: status
   };
 }
 
-async function run() {
+function getFormat(value) {
+  if (typeof value !== 'string') {
+    return 'unknown';
+  }
+
+  try {
+    const path = new URL(value).pathname;
+
+    if (/\.m3u8$/i.test(path)) return 'hls';
+    if (/\.mp4$/i.test(path)) return 'mp4';
+
+    return 'other';
+  } catch {
+    return 'invalid';
+  }
+}
+
+async function main() {
+  console.log('================================');
+  console.log('HOSHI MEGAPLAY DIAGNOSTIC V2');
+  console.log('================================');
+
   const http = new HttpClient({
     timeoutMs: 10000
   });
 
   const provider = new MegaPlayProvider(http);
 
-  console.log('MegaPlayProvider: INITIALISED');
+  console.log('PROVIDER: INITIALISED');
 
-  console.log('--- ANIME SEARCH ---');
+  console.log('--- SEARCH ---');
 
   const results = await provider.search(TITLE);
 
@@ -120,64 +147,65 @@ async function run() {
     Array.isArray(results) ? results.length : 0
   );
 
-  const matches = Array.isArray(results)
-    ? results.filter(item =>
-        titleMatches(item, TITLE)
-      )
-    : [];
-
-  console.log('EXACT MATCHES:', matches.length);
-
-  // Prefer the verified AniList ID for Naruto.
-  const anime = matches.find(item =>
-    /(?:^|:)20$/.test(String(item.id))
-  );
-
-  if (!anime) {
-    console.log('RESULT: ANIME_ID_NOT_FOUND');
+  if (!Array.isArray(results)) {
+    console.log('RESULT: INVALID_SEARCH_RESPONSE');
     return;
   }
 
-  console.log('ANIME ID:', String(anime.id));
+  const anime = results.find(item =>
+    String(item.id) ===
+    'megaplay:' + ANILIST_ID
+  );
 
-  console.log('--- EPISODE LOOKUP ---');
+  if (!anime) {
+    console.log('RESULT: ANIME_NOT_FOUND');
+    return;
+  }
+
+  console.log('ANIME ID:', anime.id);
+
+  console.log('--- EPISODES ---');
 
   const units = await provider.fetchContentUnits(
     anime.id
   );
 
-  console.log(
-    'EPISODES FOUND:',
-    Array.isArray(units) ? units.length : 0
-  );
-
   if (!Array.isArray(units)) {
-    console.log('RESULT: EPISODE_LIST_INVALID');
+    console.log('RESULT: INVALID_EPISODE_RESPONSE');
     return;
   }
 
-  const episodes = units.filter(unit =>
+  console.log('EPISODE COUNT:', units.length);
+
+  const matches = units.filter(unit =>
     Number(unit?.number) === EPISODE
   );
 
-  if (episodes.length !== 1) {
+  if (matches.length !== 1) {
     console.log('RESULT: EPISODE_NOT_UNIQUE');
     return;
   }
 
-  const unit = episodes[0];
+  const unit = matches[0];
 
-  console.log('EPISODE ID:', String(unit.id));
+  console.log('EPISODE ID:', unit.id);
 
-  console.log('--- STREAM RESOLUTION ---');
+  console.log('--- RESOLVE SUB / DUB ---');
 
   for (const language of ['sub', 'dub']) {
     console.log('LANGUAGE:', language);
+
+    const started = Date.now();
 
     try {
       const result = await provider.resolveStream(
         unit.id,
         language
+      );
+
+      console.log(
+        'DURATION_MS:',
+        Date.now() - started
       );
 
       console.log(
@@ -189,9 +217,7 @@ async function run() {
         result?.type !== 'video' ||
         !Array.isArray(result.streams)
       ) {
-        console.log(
-          'STREAM STATUS: NO_VIDEO_PAYLOAD'
-        );
+        console.log('STATUS: NO_VIDEO_PAYLOAD');
         continue;
       }
 
@@ -200,52 +226,77 @@ async function run() {
         result.streams.length
       );
 
-      result.streams.slice(0, 3).forEach(
-        (stream, index) => {
-          console.log(
-            'STREAM ' + (index + 1) + ':',
-            JSON.stringify(
-              describeStream(stream)
-            )
-          );
-        }
-      );
+      for (
+        const stream of result.streams.slice(0, 3)
+      ) {
+        const source =
+          stream?.sourceUrl ||
+          stream?.url;
+
+        const headerNames = stream?.headers &&
+          typeof stream.headers === 'object'
+            ? Object.keys(stream.headers)
+            : [];
+
+        const tracks = Array.isArray(
+          stream?.subtitles
+        )
+          ? stream.subtitles
+          : Array.isArray(stream?.tracks)
+            ? stream.tracks
+            : [];
+
+        console.log('STREAM METADATA:', JSON.stringify({
+          format: getFormat(source),
+          sourcePresent:
+            typeof source === 'string' &&
+            source.length > 0,
+          requiresHeaders:
+            headerNames.length > 0,
+          subtitleCount: tracks.length
+        }));
+      }
 
       console.log(
-        'STREAM STATUS:',
-        result.streams.length
-          ? 'METADATA_RETURNED'
+        'STATUS:',
+        result.streams.length > 0
+          ? 'VIDEO_METADATA_RETURNED'
           : 'NO_STREAMS'
       );
 
     } catch (error) {
       console.log(
-        'STREAM STATUS: RESOLVE_FAILED'
+        'DURATION_MS:',
+        Date.now() - started
       );
 
       console.log(
-        'ERROR TYPE:',
-        String(
-          error?.name || 'Unknown'
-        )
+        'RESOLVER ERROR:',
+        JSON.stringify(classify(error))
       );
+
+      console.log('STATUS: RESOLVE_FAILED');
     }
   }
 
-  console.log('RESULT: DIAGNOSTIC_COMPLETE');
+  console.log('RESULT: TEST_COMPLETE');
 }
 
 try {
-  await run();
+  await main();
+
 } catch (error) {
-  console.log('RESULT: DIAGNOSTIC_FAILED');
   console.log(
-    'ERROR TYPE:',
-    String(error?.name || 'Unknown')
+    'RESULT: DIAGNOSTIC_FAILED'
+  );
+
+  console.log(
+    'DIAGNOSTIC ERROR:',
+    JSON.stringify(classify(error))
   );
 }
 
 console.log('================================');
 console.log('No video files downloaded.');
-console.log('No stream URLs or tokens printed.');
+console.log('No stream URLs or credentials printed.');
 console.log('================================');
