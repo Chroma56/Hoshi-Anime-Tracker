@@ -963,11 +963,39 @@ function detail(a, wantEp) {
 
   var episodes = [], lang = "sub", view = "tiles", curIdx = -1, query = "", rng = 0, PAGE = 50, emptyMsg = "", timer = 0;
 
+  // MegaPlay V3.3: prefer an explicit Anikoto episode EMBED ID, never an
+  // ordinary episode number, series ID or unqualified episode.id.
+  function megaPlayEpisodeId(ep) {
+    if (!ep || typeof ep !== "object") return "";
+    var id = ep.episode_embed_id ?? ep.episodeEmbedId ?? ep.embed_id ?? ep.embedId ?? "";
+    if (typeof id !== "string" && typeof id !== "number") return "";
+    id = String(id).trim();
+    return /^\d{1,18}$/.test(id) ? id : "";
+  }
+  function megaPlayUrl(kind, id, num, l) {
+    if (l !== "sub" && l !== "dub") return "";
+    if (!/^\d{1,18}$/.test(String(id || ""))) return "";
+    if (kind === "s-2") return "https://megaplay.buzz/stream/s-2/" + id + "/" + l;
+    if ((kind === "ani" || kind === "mal") && /^\d{1,5}(?:\.\d{1,2})?$/.test(String(num || ""))) {
+      return "https://megaplay.buzz/stream/" + kind + "/" + id + "/" + num + "/" + l;
+    }
+    return "";
+  }
   function streamFor(ep, l) {
-    var e = ep && (ep.embed_url || ep.embed || ep.url || ep.streamUrl);
-    if (!e) return null;
-    if (typeof e === "string") return l === "sub" ? e : null;
-    return e[l] || null;
+    if (!ep || (l !== "sub" && l !== "dub")) return null;
+    var exactId = megaPlayEpisodeId(ep);
+    if (exactId) return megaPlayUrl("s-2", exactId, null, l);
+    var e = ep.embed_url || ep.embed || ep.url || ep.streamUrl;
+    if (typeof e === "string") {
+      // A single embed URL does not establish that the other audio version exists.
+      return l === "sub" && /^https:\/\//i.test(e) ? e : null;
+    }
+    if (e && typeof e === "object" && typeof e[l] === "string" && /^https:\/\//i.test(e[l])) return e[l];
+    // Last resort: documented MAL/AniList mapping, only with a real numeric ID.
+    var number = ep.number ?? ep.episode ?? ep.num;
+    var ani = a.aniId || (a.raw && (a.raw.ani_id || a.raw.anilist_id));
+    var mal = a.malId || (a.raw && a.raw.mal_id);
+    return megaPlayUrl("ani", ani, number, l) || megaPlayUrl("mal", mal, number, l) || null;
   }
   function epNum(ep, i) { return ep.number || ep.episode || ep.num || (i + 1); }
   function epTitle(ep) { return (ep.title && !/^episode\s*\d+$/i.test(ep.title)) ? ep.title : ""; }
@@ -1343,7 +1371,7 @@ function detail(a, wantEp) {
     list.className = "vlist" + (view === "tiles" ? " tiles" : "");
     idx.forEach(function(i) {
       var ep = episodes[i], num = epNum(ep, i), t = epTitle(ep);
-      var cls = (view === "tiles" ? "vt" : "vr") + (streamFor(ep, lang) ? "" : " off") + (i === curIdx ? " on" : "") + (seen[num] ? " seen" : "");
+      var cls = (view === "tiles" ? "vt" : "vr") + (can(i) ? "" : " off") + (i === curIdx ? " on" : "") + (seen[num] ? " seen" : "");
       var el = mk("button", cls); el.type = "button"; el.setAttribute("data-i", i);
       if (view === "tiles") { el.textContent = num; el.title = t || ("Episode " + num); }
       else {
@@ -1404,7 +1432,7 @@ function detail(a, wantEp) {
   if (a.src === "ani") {
     var n = parseInt(a.raw && a.raw.episodes, 10) || 0, base = "https://megaplay.buzz/stream/ani/" + a.aniId + "/", gen_ = [];
     for (var i = 1; i <= n; i++) gen_.push({ number: i, embed_url: { sub: base + i + "/sub", dub: base + i + "/dub" } });
-    setEpisodes(gen_, "Streams load from MegaPlay by AniList ID. Dub may not exist for every title.", "Episode count isn't known for this title yet.");
+    setEpisodes(gen_, "MegaPlay AniList embed mapping. SUB/DUB availability depends on the title.", "Episode count isn't known for this title yet.");
   } else {
     (a.id ? getSeries(a.id) : Promise.reject(new Error("this title has no ID"))).then(function(res) {
       if (CUR !== a) return;
