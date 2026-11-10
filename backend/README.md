@@ -1,6 +1,6 @@
 # Hoshi Node stream metadata backend (v1)
 
-Based on the server/player separation used by PlayzAnime, **not a copy of its proprietary stream-extraction implementation**. This service only serves streams that you have rights to distribute and that you explicitly configure. No DRM decryption, iframe interception, or CDN circumvention. Hoshi Player V3 continues to use the existing embed for missing streams.
+This service only serves streams that you have rights to distribute and that you explicitly configure. No DRM decryption, iframe interception, or CDN circumvention. Hoshi Player V3 continues to use the existing embed for missing streams.
 
 ## Deploy on Render (Node web service)
 
