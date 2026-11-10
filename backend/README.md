@@ -1,59 +1,23 @@
+# Hoshi Anikoto connector — safe staged integration
 
-# Hoshi Backend V3 — Provider adapter
-
-This backend does **not** extract from embedded commercial players.
+This archive is **stage 1**, a drop-in, read-only catalogue and episode connector. It is NOT an already-wired video player integration. Hoshi's production `provider-adapter.mjs` V4.4 has not been supplied in full; replacing it with an older copy would be unsafe.
 
 ## Installation
 
-Replace `backend/server.mjs`, `backend/package.json` and `backend/test.mjs`; add `backend/provider-adapter.mjs`.
+1. In `Chroma56/Hoshi-Anime-Tracker` upload all three `.mjs` files into `backend/`.
+2. On Render, ensure `anime-sdk` is present in dependencies, and set `ANIKOTO_DIRECT_ENABLED=false`.
+3. Run the offline test: `node anikoto-selftest.mjs`.
+4. To test catalogue metadata once, run `node anikoto-diagnostic.mjs`. It does not call `resolveStream`.
+5. Restore normal build command after diagnostic.
 
-No Cloudflare change needed: Worker V2.1 already forwards the supported metadata.
+## Explicit title mapping
 
-Keep `BACKEND_TOKEN`, `MEDIA_HOSTS`, and `STREAM_CATALOG={}` as they are.
+`ANIKOTO_TITLE_MAP={"al195539":"Exact Anikoto catalogue title"}`
 
-The provider adapter is disabled by default.
+Use the precise title returned by the SDK; don't blindly match the first search result to an AniList ID. The mapping is used only if you call `findAnikotoEpisodes(series)`.
 
-## Provider configuration
+## Production integration
 
-When you have a compatible, authorised provider, set these variables in Render:
+Keep `server.mjs` and `provider-adapter.mjs` unchanged until the actual V4.4 adapter is merged. Hoshi will continue to use its existing playback and MegaPlay fallback. The exported `resolvePermittedUnit(unitId, language)` is disabled unless `ANIKOTO_DIRECT_ENABLED=true`; enabling it is not a grant of media distribution or ad-free playback rights. Confirm rights and browser compatibility before allowing public direct playback.
 
-- `PROVIDER_API_URL` — complete HTTPS resolver endpoint
-- `PROVIDER_HOSTS` — exact allowed hostname for the metadata endpoint
-- `PROVIDER_API_TOKEN` — optional private access credential
-- `MEDIA_HOSTS` — exact hostnames for playable media URLs and caption files
-
-The provider endpoint receives `series`, `episode` and `lang` query parameters.
-
-Example response:
-
-```json
-{
-  "available": true,
-  "type": "direct",
-  "format": "hls",
-  "url": "https://your-cdn.example/ep1/master.m3u8",
-  "subtitles": [
-    {
-      "lang": "en",
-      "label": "English",
-      "url": "https://your-cdn.example/ep1/en.vtt"
-    }
-  ]
-}
-```
-
-The backend validates the returned stream URL against `MEDIA_HOSTS` and parses the master playlist for quality and direct VTT tracks.
-
-It does not relay video bytes or bypass DRM. Both the media provider and the browser must allow playback from GitHub Pages.
-
-## Tests
-
-Run `npm test` from the backend directory.
-
-`GET /health` returns version 3.0 once deployed.
-
-## Fallback
-
-If no configured provider returns usable direct video, the existing `STREAM_CATALOG` and embed fallback still apply.
-
-Keep the existing Hoshi V3 frontend and Cloudflare Stream Worker V2.1 unchanged.
+The SDK provider uses upstream embed extraction; successful catalogue/episode metadata is **not proof** of playable direct media, stable CORS support, or permission to omit advertisements. No playback proxy or DRM/advertisement circumvention is included.
