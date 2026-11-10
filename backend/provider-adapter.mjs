@@ -1,89 +1,111 @@
 
-```javascript
-// Hoshi V4 - Optional anime-sdk streaming adapter
-// Uses licensed or otherwise authorised direct video sources.
-// Preserves Hoshi's existing MegaPlay embed fallback.
+// Hoshi V3.1 — Corrected Provider Adapter
+// Compatible with backend/server.mjs.
+// Direct streaming requires a configured, authorised provider.
+
+function hostSet(value) {
+  return new Set(
+    String(value || '')
+      .split(',')
+      .map(function (s) {
+        return s.trim().toLowerCase();
+      })
+      .filter(Boolean)
+  );
+}
 
 export function providerUrl(value) {
   try {
     const url = new URL(value);
 
-    const hosts = String(
-      process.env.PROVIDER_HOSTS || ''
-    )
-      .split(',')
-      .map(x => x.trim().toLowerCase())
-      .filter(Boolean);
-
     if (
       url.protocol !== 'https:' ||
       url.username ||
       url.password ||
       url.hash ||
-      !hosts.includes(url.hostname.toLowerCase())
+      url.search
+    ) {
+      return null;
+    }
+
+    if (
+      !hostSet(process.env.PROVIDER_HOSTS)
+        .has(url.hostname.toLowerCase())
     ) {
       return null;
     }
 
     return url;
-  } catch {
+  } catch (error) {
     return null;
   }
 }
 
-function allowedMediaUrl(value, extension) {
+function mediaUrl(value, format) {
   try {
     const url = new URL(value);
-
-    const allowedHosts = String(
-      process.env.MEDIA_HOSTS || ''
-    )
-      .split(',')
-      .map(x => x.trim().toLowerCase())
-      .filter(Boolean);
 
     if (
       url.protocol !== 'https:' ||
       url.username ||
       url.password ||
-      url.hash ||
-      !allowedHosts.includes(
-        url.hostname.toLowerCase()
-      )
+      url.hash
     ) {
       return null;
     }
 
     if (
-      extension &&
-      !extension.test(url.pathname)
+      !hostSet(process.env.MEDIA_HOSTS)
+        .has(url.hostname.toLowerCase())
+    ) {
+      return null;
+    }
+
+    if (
+      format === 'hls' &&
+      !/\.m3u8$/i.test(url.pathname)
+    ) {
+      return null;
+    }
+
+    if (
+      format === 'mp4' &&
+      !/\.mp4$/i.test(url.pathname)
+    ) {
+      return null;
+    }
+
+    if (
+      format === 'vtt' &&
+      !/\.vtt$/i.test(url.pathname)
     ) {
       return null;
     }
 
     return url.href;
-  } catch {
+  } catch (error) {
     return null;
   }
 }
 
-function normalizeSubtitles(value) {
-  if (!Array.isArray(value)) {
+function cleanSubtitles(subtitles) {
+  if (!Array.isArray(subtitles)) {
     return [];
   }
 
-  return value
+  return subtitles
     .slice(0, 20)
-    .map(track => {
-      if (!track || typeof track !== 'object') {
+    .map(function (item) {
+      if (
+        !item ||
+        typeof item !== 'object'
+      ) {
         return null;
       }
 
-      const url = allowedMediaUrl(
-        track.url ||
-        track.src ||
-        track.sourceUrl,
-        /\.vtt$/i
+      const url = mediaUrl(
+        item.url,
+        'vtt'
       );
 
       if (!url) {
@@ -93,13 +115,11 @@ function normalizeSubtitles(value) {
       return {
         url: url,
         lang: String(
-          track.lang ||
-          track.language ||
-          'en'
+          item.lang || 'en'
         ).slice(0, 16),
         label: String(
-          track.label ||
-          track.name ||
+          item.label ||
+          item.lang ||
           'Subtitles'
         ).slice(0, 80)
       };
@@ -107,191 +127,73 @@ function normalizeSubtitles(value) {
     .filter(Boolean);
 }
 
-function normalizeStream(result) {
+// Main function required by server.mjs
+export async function providerEntry(
+  series,
+  episode,
+  lang
+) {
   if (
-    !result ||
-    result.type !== 'video' ||
-    !Array.isArray(result.streams)
-  ) {
-    return null;
-  }
-
-  for (const stream of result.streams) {
-    if (!stream) {
-      continue;
-    }
-
-    const url = allowedMediaUrl(
-      stream.sourceUrl || stream.url,
-      /\.(m3u8|mp4)$/i
-    );
-
-    if (!url) {
-      continue;
-    }
-
-    const format = /\.m3u8$/i.test(
-      new URL(url).pathname
-    ) ? 'hls' : 'mp4';
-
-    return {
-      available: true,
-      type: format,
-      url: url,
-      subtitles: normalizeSubtitles(
-        stream.subtitles ||
-        stream.tracks ||
-        result.subtitles
-      )
-    };
-  }
-
-  return null;
-}
-
-function getAniListId(series) {
-  let mapping = {};
-
-  try {
-    const value = JSON.parse(
-      process.env.ANILIST_ID_MAP || '{}'
-    );
-
-    if (
-      value &&
-      typeof value === 'object' &&
-      !Array.isArray(value)
-    ) {
-      mapping = value;
-    }
-  } catch {
-    return null;
-  }
-
-  let id = '';
-
-  if (
-    Object.prototype.hasOwnProperty.call(
-      mapping,
-      series
+    !/^[A-Za-z0-9_-]{1,60}$/.test(
+      String(series)
     )
   ) {
-    id = String(mapping[series]);
-  } else if (
-    process.env.HOSHI_SERIES_IDS_ARE_ANILIST ===
-    'true'
-  ) {
-    id = String(series);
-  }
-
-  return /^\d{1,10}$/.test(id)
-    ? id
-    : null;
-}
-
-let sdkPromise = null;
-
-async function loadSdk() {
-  if (!sdkPromise) {
-    sdkPromise = import('anime-sdk')
-      .then(sdk => {
-        const http = new sdk.HttpClient({
-          timeoutMs: 4000
-        });
-
-        return {
-          provider: new sdk.MegaPlayProvider(http),
-          metadata: new sdk.AnilistMeta(http)
-        };
-      })
-      .catch(error => {
-        sdkPromise = null;
-        throw error;
-      });
-  }
-
-  return sdkPromise;
-}
-
-async function sdkResolve(
-  series,
-  episode,
-  lang
-) {
-  if (
-    process.env.HOSHI_SDK_ENABLED !== 'true'
-  ) {
     return null;
   }
-
-  const anilistId = getAniListId(series);
 
   if (
-    !anilistId ||
-    !['sub', 'dub'].includes(lang) ||
-    !/^\d{1,5}$/.test(String(episode))
+    !/^\d{1,5}(?:\.\d{1,2})?$/.test(
+      String(episode)
+    )
   ) {
     return null;
   }
 
-  try {
-    const sdk = await loadSdk();
-
-    const result =
-      await sdk.metadata.resolveStream(
-        'anilist:' + anilistId,
-        Number(episode),
-        sdk.provider,
-        lang
-      );
-
-    return normalizeStream(result);
-  } catch (error) {
-    console.warn(
-      'Hoshi SDK resolution unavailable:',
-      String(
-        error && error.message
-          ? error.message
-          : error
-      ).slice(0, 160)
-    );
-
+  if (
+    lang !== 'sub' &&
+    lang !== 'dub'
+  ) {
     return null;
   }
-}
 
-async function officialProviderResolve(
-  series,
-  episode,
-  lang
-) {
   const base = providerUrl(
     process.env.PROVIDER_API_URL || ''
   );
 
-  if (!base || base.search || base.hash) {
+  if (!base) {
     return null;
   }
 
-  const url = new URL(base);
+  const endpoint = new URL(base.href);
 
-  url.searchParams.set('series', series);
-  url.searchParams.set('episode', episode);
-  url.searchParams.set('lang', lang);
+  endpoint.searchParams.set(
+    'series',
+    String(series)
+  );
+
+  endpoint.searchParams.set(
+    'episode',
+    String(episode)
+  );
+
+  endpoint.searchParams.set(
+    'lang',
+    lang
+  );
+
+  const headers = {
+    Accept: 'application/json'
+  };
+
+  if (process.env.PROVIDER_API_TOKEN) {
+    headers.Authorization =
+      'Bearer ' +
+      process.env.PROVIDER_API_TOKEN;
+  }
 
   try {
-    const headers = {
-      Accept: 'application/json'
-    };
-
-    if (process.env.PROVIDER_API_TOKEN) {
-      headers.Authorization =
-        'Bearer ' +
-        process.env.PROVIDER_API_TOKEN;
-    }
-
     const response = await fetch(
-      url.href,
+      endpoint.href,
       {
         method: 'GET',
         headers: headers,
@@ -304,34 +206,36 @@ async function officialProviderResolve(
       return null;
     }
 
-    const declaredLength = Number(
-      response.headers.get('content-length') || 0
-    );
-
-    if (declaredLength > 65536) {
+    if (
+      Number(
+        response.headers.get(
+          'content-length'
+        ) || 0
+      ) > 65536
+    ) {
       return null;
     }
 
-    const body = await response.text();
+    const text = await response.text();
 
-    if (body.length > 65536) {
+    if (text.length > 65536) {
       return null;
     }
 
-    const result = JSON.parse(body);
+    const data = JSON.parse(text);
 
     if (
-      !result ||
-      result.available !== true
+      !data ||
+      data.available !== true
     ) {
       return null;
     }
 
     const format =
-      result.format === 'hls' ||
-      result.format === 'mp4'
-        ? result.format
-        : result.type;
+      data.format === 'hls' ||
+      data.format === 'mp4'
+        ? data.format
+        : data.type;
 
     if (
       format !== 'hls' &&
@@ -340,11 +244,9 @@ async function officialProviderResolve(
       return null;
     }
 
-    const url = allowedMediaUrl(
-      result.url,
-      format === 'hls'
-        ? /\.m3u8$/i
-        : /\.mp4$/i
+    const url = mediaUrl(
+      data.url,
+      format
     );
 
     if (!url) {
@@ -352,55 +254,14 @@ async function officialProviderResolve(
     }
 
     return {
-      available: true,
       type: format,
+      available: true,
       url: url,
-      subtitles: normalizeSubtitles(
-        result.subtitles
+      subtitles: cleanSubtitles(
+        data.subtitles
       )
     };
   } catch (error) {
     return null;
   }
 }
-
-export async function providerEntry(
-  series,
-  episode,
-  lang
-) {
-  if (
-    !/^[A-Za-z0-9_-]{1,60}$/.test(
-      String(series)
-    ) ||
-    !/^\d{1,5}(?:\.\d{1,2})?$/.test(
-      String(episode)
-    ) ||
-    !['sub', 'dub'].includes(lang)
-  ) {
-    return null;
-  }
-
-  // First check an explicitly configured,
-  // authorised provider API.
-  const official =
-    await officialProviderResolve(
-      series,
-      episode,
-      lang
-    );
-
-  if (official) {
-    return official;
-  }
-
-  // Optional anime-sdk integration.
-  // Disabled until usage permissions
-  // and stream compatibility are verified.
-  return sdkResolve(
-    series,
-    episode,
-    lang
-  );
-}
-```
