@@ -1,487 +1,167 @@
 
- // Hoshi V4 Provider Adapter
- // Compatible with Hoshi Render Backend V3.1.
- // Direct video sources must be authorised for Hoshi playback.
+// Hoshi provider adapter V4.2
+// Compatible with Hoshi Render Backend V3.1.
 
-function hostSet(value) {
-  return new Set(
-    String(value || '')
-      .split(',')
-      .map(function (host) {
-        return host.trim().toLowerCase();
-      })
-      .filter(Boolean)
-  );
+const CACHE_MS = 5 * 60 * 1000;
+const cache = new Map();
+const MAX_CACHE = 120;
+
+function allowedHosts(value) {
+  return new Set(String(value || '').split(',').map(x => x.trim().toLowerCase()).filter(Boolean));
 }
 
 export function providerUrl(value) {
   try {
     const url = new URL(value);
-
-    if (
-      url.protocol !== 'https:' ||
-      url.username ||
-      url.password ||
-      url.hash ||
-      url.search ||
-      !hostSet(process.env.PROVIDER_HOSTS)
-        .has(url.hostname.toLowerCase())
-    ) {
-      return null;
-    }
-
-    return url;
-  } catch (error) {
-    return null;
-  }
+    if (url.protocol !== 'https:' || url.username || url.password || url.hash || url.search) return null;
+    return allowedHosts(process.env.PROVIDER_HOSTS).has(url.hostname.toLowerCase()) ? url : null;
+  } catch { return null; }
 }
 
-function mediaUrl(value, format) {
+function mediaUrl(value, kind) {
   try {
     const url = new URL(value);
-
-    if (
-      url.protocol !== 'https:' ||
-      url.username ||
-      url.password ||
-      url.hash ||
-      !hostSet(process.env.MEDIA_HOSTS)
-        .has(url.hostname.toLowerCase())
-    ) {
-      return null;
-    }
-
-    const patterns = {
-      hls: /\.m3u8$/i,
-      mp4: /\.mp4$/i,
-      vtt: /\.vtt$/i
-    };
-
-    if (
-      !patterns[format] ||
-      !patterns[format].test(url.pathname)
-    ) {
-      return null;
-    }
-
-    return url.href;
-  } catch (error) {
-    return null;
-  }
+    if (url.protocol !== 'https:' || url.username || url.password || url.hash) return null;
+    if (!allowedHosts(process.env.MEDIA_HOSTS).has(url.hostname.toLowerCase())) return null;
+    const suffix = kind === 'hls' ? /\.m3u8$/i : kind === 'mp4' ? /\.mp4$/i : kind === 'vtt' ? /\.vtt$/i : null;
+    return suffix && suffix.test(url.pathname) ? url.href : null;
+  } catch { return null; }
 }
-
-function normalizeSubtitles(input) {
-  if (!Array.isArray(input)) {
-    return [];
-  }
-
-  return input
-    .slice(0, 20)
-    .map(function (track) {
-      if (
-        !track ||
-        typeof track !== 'object'
-      ) {
-        return null;
-      }
-
-      const url = mediaUrl(
-        track.url ||
-        track.src ||
-        track.sourceUrl,
-        'vtt'
-      );
-
-      if (!url) {
-        return null;
-      }
-
-      return {
-        url: url,
-        lang: String(
-          track.lang ||
-          track.language ||
-          'en'
-        ).slice(0, 16),
-        label: String(
-          track.label ||
-          track.name ||
-          'Subtitles'
-        ).slice(0, 80)
-      };
-    })
-    .filter(Boolean);
-}
-
-function normalizeDirect(data) {
-  if (
-    !data ||
-    data.available === false
-  ) {
-    return null;
-  }
-
-  let format = data.format;
-
-  if (
-    format !== 'hls' &&
-    format !== 'mp4'
-  ) {
-    format = data.type;
-  }
-
-  if (
-    format !== 'hls' &&
-    format !== 'mp4'
-  ) {
-    return null;
-  }
-
-  const url = mediaUrl(
-    data.url,
-    format
-  );
-
-  if (!url) {
-    return null;
-  }
-
-  return {
-    type: format,
-    available: true,
-    url: url,
-    subtitles: normalizeSubtitles(
-      data.subtitles
-    )
-  };
-}
-
-async function officialProvider(
-  series,
-  episode,
-  lang
-) {
-  const base = providerUrl(
-    process.env.PROVIDER_API_URL || ''
-  );
-
-  if (!base) {
-    return null;
-  }
-
-  const endpoint = new URL(base.href);
-
-  endpoint.searchParams.set(
-    'series',
-    series
-  );
-
-  endpoint.searchParams.set(
-    'episode',
-    episode
-  );
-
-  endpoint.searchParams.set(
-    'lang',
-    lang
-  );
-
-  const headers = {
-    Accept: 'application/json'
-  };
-
-  if (process.env.PROVIDER_API_TOKEN) {
-    headers.Authorization =
-      'Bearer ' +
-      process.env.PROVIDER_API_TOKEN;
-  }
-
-  try {
-    const response = await fetch(
-      endpoint.href,
-      {
-        method: 'GET',
-        headers: headers,
-        redirect: 'error',
-        signal: AbortSignal.timeout(4000)
-      }
-    );
-
-    if (!response.ok) {
-      return null;
-    }
-
-    const declaredLength = Number(
-      response.headers.get(
-        'content-length'
-      ) || 0
-    );
-
-    if (declaredLength > 65536) {
-      return null;
-    }
-
-    const body = await response.text();
-
-    if (body.length > 65536) {
-      return null;
-    }
-
-    return normalizeDirect(
-      JSON.parse(body)
-    );
-  } catch (error) {
-    return null;
-  }
-}
-
-// Automatically recognise Hoshi's AniList IDs.
-// Example: al195539 becomes 195539.
 
 export function getAniListId(series) {
-  const value = String(
-    series || ''
-  ).trim();
-
-  const match = /^al([1-9]\d{0,9})$/.exec(
-    value
-  );
-
-  if (match) {
-    return match[1];
-  }
-
-  // Preserve manual mappings for other IDs.
+  const value = String(series || '').trim();
+  const match = /^al([1-9]\d{0,9})$/.exec(value);
+  if (match) return match[1];
   let mapping = {};
-
   try {
-    const parsed = JSON.parse(
-      process.env.ANILIST_ID_MAP || '{}'
-    );
-
-    if (
-      parsed &&
-      typeof parsed === 'object' &&
-      !Array.isArray(parsed)
-    ) {
-      mapping = parsed;
-    }
-  } catch (error) {
-    return null;
-  }
-
-  if (
-    Object.prototype.hasOwnProperty.call(
-      mapping,
-      value
-    )
-  ) {
-    const id = String(mapping[value]);
-
-    return /^[1-9]\d{0,9}$/.test(id)
-      ? id
-      : null;
-  }
-
-  if (
-    process.env.HOSHI_SERIES_IDS_ARE_ANILIST ===
-      'true' &&
-    /^[1-9]\d{0,9}$/.test(value)
-  ) {
-    return value;
-  }
-
-  return null;
+    const input = JSON.parse(process.env.ANILIST_ID_MAP || '{}');
+    if (input && typeof input === 'object' && !Array.isArray(input)) mapping = input;
+  } catch { return null; }
+  const id = Object.prototype.hasOwnProperty.call(mapping, value)
+    ? String(mapping[value])
+    : process.env.HOSHI_SERIES_IDS_ARE_ANILIST === 'true' ? value : '';
+  return /^[1-9]\d{0,9}$/.test(id) ? id : null;
 }
 
-let sdkPromise = null;
+function normalizeSubs(value) {
+  const seen = new Set();
+  return (Array.isArray(value) ? value : []).map(track => {
+    if (!track || typeof track !== 'object') return null;
+    const url = mediaUrl(track.url || track.sourceUrl || track.src || track.file, 'vtt');
+    if (!url || seen.has(url)) return null;
+    seen.add(url);
+    const lang = String(track.lang || track.language || 'en').slice(0, 16);
+    const label = String(track.label || track.name || lang || 'Subtitles')
+      .replace(/\s{2,}/g, ' ').trim().slice(0, 80);
+    return { url, lang, label };
+  }).filter(Boolean).slice(0, 20);
+}
 
-async function loadSdk() {
+function normalizeDirect(input) {
+  if (!input || input.available === false) return null;
+  const format = ['hls', 'mp4'].includes(input.format) ? input.format : input.type;
+  if (format !== 'hls' && format !== 'mp4') return null;
+  const url = mediaUrl(input.url, format);
+  if (!url) return null;
+  return { type: format, url, subtitles: normalizeSubs(input.subtitles) };
+}
+
+async function officialSource(series, episode, lang) {
+  const base = providerUrl(process.env.PROVIDER_API_URL || '');
+  if (!base) return null;
+  const endpoint = new URL(base.href);
+  endpoint.searchParams.set('series', series);
+  endpoint.searchParams.set('episode', episode);
+  endpoint.searchParams.set('lang', lang);
+  const headers = { Accept: 'application/json' };
+  if (process.env.PROVIDER_API_TOKEN) headers.Authorization = 'Bearer ' + process.env.PROVIDER_API_TOKEN;
+  try {
+    const response = await fetch(endpoint, {
+      headers, redirect: 'error', signal: AbortSignal.timeout(4000)
+    });
+    if (!response.ok || Number(response.headers.get('content-length') || 0) > 65536) return null;
+    // Enforce actual byte bound even when the server omits Content-Length.
+    const reader = response.body?.getReader();
+    if (!reader) return null;
+    const parts = [];
+    let bytes = 0;
+    while (true) {
+      const next = await reader.read();
+      if (next.done) break;
+      bytes += next.value.byteLength;
+      if (bytes > 65536) { await reader.cancel(); return null; }
+      parts.push(Buffer.from(next.value));
+    }
+    return normalizeDirect(JSON.parse(Buffer.concat(parts).toString('utf8')));
+  } catch { return null; }
+}
+
+let sdkPromise;
+async function sdkInstances() {
   if (!sdkPromise) {
-    sdkPromise = import('anime-sdk')
-      .then(function (lib) {
-        if (
-          typeof lib.HttpClient !==
-            'function' ||
-          typeof lib.AnilistMeta !==
-            'function' ||
-          typeof lib.MegaPlayProvider !==
-            'function'
-        ) {
-          throw new Error(
-            'Required anime-sdk exports unavailable'
-          );
-        }
-
-        const http = new lib.HttpClient({
-          timeoutMs: 4000
-        });
-
-        return {
-          metadata: new lib.AnilistMeta(
-            http
-          ),
-          provider:
-            new lib.MegaPlayProvider(http)
-        };
-      })
-      .catch(function (error) {
-        sdkPromise = null;
-        throw error;
-      });
+    sdkPromise = import('anime-sdk').then(lib => {
+      const http = new lib.HttpClient({ timeoutMs: 4000 });
+      return {
+        meta: new lib.AnilistMeta(http),
+        megaplay: new lib.MegaPlayProvider(http)
+      };
+    }).catch(error => { sdkPromise = null; throw error; });
   }
-
   return sdkPromise;
 }
 
-async function sdkProvider(
-  series,
-  episode,
-  lang
-) {
-  // Leave disabled until playback use is authorised.
-  if (
-    process.env.HOSHI_SDK_ENABLED !==
-    'true'
-  ) {
-    return null;
-  }
-
-  const anilistId = getAniListId(
-    series
-  );
-
-  if (
-    !anilistId ||
-    !/^\d{1,5}$/.test(episode)
-  ) {
-    return null;
-  }
-
+async function sdkSource(series, episode, lang) {
+  // Opt-in only: API/package availability is not proof of video playback rights.
+  if (process.env.HOSHI_SDK_ENABLED !== 'true') return null;
+  const id = getAniListId(series);
+  if (!id || !/^\d{1,5}$/.test(episode)) return null;
   try {
-    const sdk = await loadSdk();
-
-    if (
-      typeof sdk.metadata.resolveStream !==
-      'function'
-    ) {
-      return null;
-    }
-
-    const result =
-      await sdk.metadata.resolveStream(
-        'anilist:' + anilistId,
-        Number(episode),
-        sdk.provider,
-        lang
-      );
-
-    if (
-      !result ||
-      result.type !== 'video' ||
-      !Array.isArray(result.streams)
-    ) {
-      return null;
-    }
-
-    for (const stream of result.streams) {
-      if (
-        !stream ||
-        typeof stream !== 'object'
-      ) {
-        continue;
-      }
-
-      const candidate =
-        stream.sourceUrl ||
-        stream.url;
-
-      if (!candidate) {
-        continue;
-      }
-
+    const sdk = await sdkInstances();
+    const result = await sdk.meta.resolveStream('anilist:' + id, Number(episode), sdk.megaplay, lang);
+    if (!result || result.type !== 'video' || !Array.isArray(result.streams)) return null;
+    // Prefer an accessible HLS track; keep MP4 as backup.
+    const streams = result.streams.slice().sort((a, b) => {
+      const aHls = /\.m3u8(?:[?#]|$)/i.test(String(a?.sourceUrl || a?.url || ''));
+      const bHls = /\.m3u8(?:[?#]|$)/i.test(String(b?.sourceUrl || b?.url || ''));
+      return Number(bHls) - Number(aHls);
+    });
+    for (const stream of streams) {
+      const candidate = stream?.sourceUrl || stream?.url;
+      if (!candidate) continue;
       let format;
-
       try {
-        const pathname = new URL(
-          candidate
-        ).pathname;
-
-        if (/\.m3u8$/i.test(pathname)) {
-          format = 'hls';
-        } else if (
-          /\.mp4$/i.test(pathname)
-        ) {
-          format = 'mp4';
-        } else {
-          continue;
-        }
-      } catch (error) {
-        continue;
-      }
-
-      const direct = normalizeDirect({
-        type: format,
-        url: candidate,
-        subtitles:
-          stream.subtitles ||
-          stream.tracks ||
-          result.subtitles ||
-          []
+        format = /\.m3u8$/i.test(new URL(candidate).pathname) ? 'hls' : 'mp4';
+      } catch { continue; }
+      const normalized = normalizeDirect({
+        type: format, url: candidate,
+        subtitles: stream?.subtitles || stream?.tracks || result.subtitles || []
       });
-
-      if (direct) {
-        return direct;
-      }
+      if (normalized) return normalized;
     }
-
     return null;
   } catch (error) {
-    console.warn(
-      'Hoshi SDK unavailable:',
-      String(
-        (error && error.message) ||
-        error
-      ).slice(0, 120)
-    );
-
+    console.warn('Hoshi SDK resolver failed:', String(error?.message || error).slice(0, 120));
     return null;
   }
 }
 
-// Required by backend/server.mjs.
-// Do not remove this exported function.
-
-export async function providerEntry(
-  series,
-  episode,
-  lang
-) {
+export async function providerEntry(series, episode, lang) {
   series = String(series);
   episode = String(episode);
   lang = String(lang);
+  if (!/^[A-Za-z0-9_-]{1,60}$/.test(series) ||
+      !/^\d{1,5}(?:\.\d{1,2})?$/.test(episode) ||
+      !['sub', 'dub'].includes(lang)) return null;
 
-  if (
-    !/^[A-Za-z0-9_-]{1,60}$/.test(series) ||
-    !/^\d{1,5}(?:\.\d{1,2})?$/.test(episode) ||
-    !['sub', 'dub'].includes(lang)
-  ) {
-    return null;
+  const key = series + ':' + episode + ':' + lang;
+  const cached = cache.get(key);
+  if (cached && cached.until > Date.now()) return cached.value;
+  // Explicitly configured provider goes first; SDK is an optional fallback.
+  const value = await officialSource(series, episode, lang) || await sdkSource(series, episode, lang);
+  // Cache only positive results so new authorised source configurations take effect promptly.
+  if (value) {
+    if (cache.size >= MAX_CACHE) cache.delete(cache.keys().next().value);
+    cache.set(key, { value, until: Date.now() + CACHE_MS });
   }
-
-  const direct = await officialProvider(
-    series,
-    episode,
-    lang
-  );
-
-  if (direct) {
-    return direct;
-  }
-
-  return sdkProvider(
-    series,
-    episode,
-    lang
-  );
+  return value;
 }
