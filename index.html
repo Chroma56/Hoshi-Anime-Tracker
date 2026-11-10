@@ -279,6 +279,45 @@ h2{font:800 24px "Bricolage Grotesque",sans-serif;margin:36px 0 2px}
 .hdp-status{color:#a4a4af;font-size:12px;margin:0}
 .hdp-file{font-size:12px;color:#ccc;max-width:200px}
 @media(max-width:640px){.hdp-actions{margin-left:0}.hdp-settings{gap:8px}.hdp-form input[type=url]{min-width:100%}}
+
+/* Hoshi Player V4 — original cinema interface, kept separate from iframe playback */
+.vplayer{border-radius:20px;background:#0e0e12;border:1px solid #303038;box-shadow:0 18px 58px #0008}
+.vplh{background:#141419;padding:12px 16px;gap:9px;flex-wrap:wrap}
+.vplt{font-family:"Bricolage Grotesque",sans-serif;letter-spacing:-.02em;font-size:16px}
+.vplh .vbtn.sm{border-radius:10px}
+.hdp-actions{margin-left:0}
+.hdp-panel{padding:16px 18px;background:linear-gradient(145deg,#18181d,#111115);border-top:1px solid #303038}
+.hdp-panel[hidden]{display:none}
+.hdp-form{display:none!important}
+.hdp-hint{max-width:750px;line-height:1.55}
+.hdp-settings{gap:13px 18px}
+.hdp-settings label{display:flex;flex-direction:column;align-items:flex-start;gap:5px;font-weight:700;font-size:11px;letter-spacing:.02em}
+.hdp-settings select,.hdp-settings input[type=number]{border-radius:9px;min-height:35px}
+.hdp-stage{isolation:isolate;max-height:76vh;background:#08090c;outline:none}
+.hdp-video{display:block}
+.hdp-subtitles{z-index:2}
+.h4-vignette{position:absolute;inset:0;pointer-events:none;background:linear-gradient(180deg,#0006,transparent 20%,transparent 58%,#000a);z-index:3}
+.h4-top{position:absolute;left:18px;right:18px;top:16px;display:flex;align-items:center;justify-content:space-between;gap:10px;z-index:5;pointer-events:none}
+.h4-mark{display:flex;align-items:center;gap:8px;color:#fff;font:800 12px "Bricolage Grotesque",sans-serif;letter-spacing:.12em;text-shadow:0 1px 9px #000}
+.h4-mark-dot{display:inline-flex;width:22px;height:22px;align-items:center;justify-content:center;background:white;color:#09090c;border-radius:7px;font-size:15px}
+.h4-live{background:#0c0c0dbb;border:1px solid #ffffff35;padding:5px 9px;border-radius:30px;color:#fff;font-size:11px}
+.h4-center{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);height:68px;width:68px;z-index:5;border:1px solid #ffffff4a;border-radius:23px;background:#f5f5f4ee;color:#08080b;font-size:28px;display:grid;place-items:center;cursor:pointer;box-shadow:0 14px 48px #000b;transition:transform .2s,opacity .2s}
+.h4-center:hover{transform:translate(-50%,-50%) scale(1.07)}
+.hdp-stage:not(.h4-paused) .h4-center{opacity:0;pointer-events:none}
+.hdp-stage:not(.h4-paused):hover .h4-center,.hdp-stage:not(.h4-paused):focus-within .h4-center{opacity:.85;pointer-events:auto}
+.h4-controls{position:absolute;bottom:0;left:0;right:0;z-index:5;display:grid;gap:8px;padding:35px 18px 16px;background:linear-gradient(transparent,#050506dc);transition:opacity .25s}
+.h4-timeline{width:100%;height:5px;accent-color:#fff;cursor:pointer;margin:0;outline-offset:7px}
+.h4-bottom{display:flex;align-items:center;gap:8px;color:#fff}
+.h4-control{width:37px;height:36px;border:1px solid transparent;border-radius:10px;background:transparent;color:#fff;font-size:17px;display:grid;place-items:center;cursor:pointer}
+.h4-control:hover,.h4-control:focus-visible{background:#ffffff29;border-color:#ffffff30}
+.h4-control.h4-outline{border-color:#ffffff4a;background:#ffffff12;width:auto;padding:0 11px;font-size:12px;font-weight:700}
+.h4-time{white-space:nowrap;font-size:12px;font-variant-numeric:tabular-nums;color:#e3e3e7}
+.h4-volume{width:75px;accent-color:#fff}
+.h4-spacer{flex:1}
+.h4-kbd{font-size:11px;color:#c1c1ca}
+.h4-settings-title{font:800 15px "Bricolage Grotesque",sans-serif;margin-bottom:6px}
+@media(max-width:640px){.h4-top{top:9px;left:10px;right:10px}.h4-controls{padding:25px 8px 9px}.h4-bottom{gap:2px}.h4-control{width:30px;height:32px;font-size:15px}.h4-volume,.h4-kbd{display:none}.h4-time{font-size:10px}.h4-center{height:52px;width:52px;border-radius:17px}.hdp-panel{padding:12px}.vplh{padding:9px}}
+@media(prefers-reduced-motion:reduce){.h4-center,.h4-controls{transition:none}}
 </style>
 </head>
 <body>
@@ -890,7 +929,7 @@ function detail(a, wantEp) {
   sourceState.setAttribute("role", "status");
   sourceState.setAttribute("aria-live", "polite");
   plh.appendChild(sourceState);
-  var directButton = mk("button", "vbtn sm", "Direct Player");
+  var directButton = mk("button", "vbtn sm", "Player settings");
   directButton.type = "button";
   directButton.title = "Use Hoshi's player for a playable MP4 or HLS stream";
   plh.insertBefore(directButton, close);
@@ -902,8 +941,10 @@ function detail(a, wantEp) {
   var directLoad = mk("button", "vbtn sm", "Load stream"); directLoad.type = "button";
   var embedBack = mk("button", "vbtn sm", "Use embed"); embedBack.type = "button";
   [directInput, directLoad, embedBack].forEach(function(e) { directForm.appendChild(e); });
+  // Keep the original diagnostic input wired internally but not in the viewing interface.
   directPanel.appendChild(directForm);
-  directPanel.appendChild(mk("p", "hdp-hint", "Direct Player auto-opens when a permitted HLS/MP4 stream is available from the episode API or your Hoshi Stream API. Otherwise Hoshi keeps the working embed. Custom subtitles cannot alter iframe playback."));
+  directPanel.appendChild(mk("div", "h4-settings-title", "Hoshi · Player preferences"));
+  directPanel.appendChild(mk("p", "hdp-hint", "Hoshi selects the video source automatically. Personalised controls are available when a direct video stream exists; iframe playback stays available otherwise."));
   var settings = mk("div", "hdp-settings");
   function setting(label, control) { var wrap = mk("label"); wrap.appendChild(document.createTextNode(label)); wrap.appendChild(control); settings.appendChild(wrap); return control; }
   var subSelect = mk("select"); subSelect.setAttribute("aria-label", "Subtitle track"); setting("Subtitles", subSelect);
@@ -917,6 +958,7 @@ function detail(a, wantEp) {
   var positionSelect = mk("select"); [["bottom","Bottom"],["top","Top"]].forEach(function(x) { var o = mk("option", "", x[1]); o.value=x[0]; positionSelect.appendChild(o); }); setting("Position", positionSelect);
   directPanel.appendChild(settings);
   var playerStatus = mk("p", "hdp-status", "Embedded player active. Custom subtitle controls apply only to Direct Player."); directPanel.appendChild(playerStatus);
+  var sourceSwitch = mk("button", "vbtn sm", "Switch to embed"); sourceSwitch.type = "button"; sourceSwitch.hidden = true; plh.insertBefore(sourceSwitch, close);
   pl.appendChild(plh); pl.appendChild(frame); pl.appendChild(directPanel); root.appendChild(pl);
 
   var eps = mk("section", "veps"), bar = mk("div", "vbar"), h2 = mk("h2", "", "Episodes"), cnt = mk("i", "", "");
@@ -1004,6 +1046,7 @@ function detail(a, wantEp) {
 
   // Direct Player functionality is intentionally separate from iframe embeds.
   var directMode = false, hlsInstance = null, activeVideo = null, overlay = null;
+  var h4Ui = null;
   var preferEmbed = false; // user can return to iframe without the custom player reopening
   var currentSubtitleTracks = [], localSubtitleUrl = null, currentDirectUrl = "", currentEpisode = null;
   function loadPlayerPrefs() { try { return JSON.parse(localStorage.getItem("hoshi-player-prefs") || "{}"); } catch(e) { return {}; } }
@@ -1017,7 +1060,7 @@ function detail(a, wantEp) {
   function destroyDirect() {
     if (hlsInstance) { hlsInstance.destroy(); hlsInstance = null; }
     if (activeVideo) { activeVideo.pause(); activeVideo.removeAttribute("src"); activeVideo.load(); activeVideo = null; }
-    overlay = null; currentSubtitleTracks = [];
+    overlay = null; h4Ui = null; currentSubtitleTracks = [];
     if (localSubtitleUrl) { URL.revokeObjectURL(localSubtitleUrl); localSubtitleUrl = null; }
   }
   function safeDirectUrl(value) {
@@ -1159,7 +1202,7 @@ function detail(a, wantEp) {
     if (!u || curIdx < 0) { message("No playable direct stream. Use an available embedded source."); return; }
     preferEmbed = true;
     ++streamLookupToken;
-    destroyDirect(); directMode = false; directPanel.hidden = true;
+    destroyDirect(); directMode = false; directPanel.hidden = true; sourceSwitch.hidden = true;
     frame.innerHTML = "";
     var f = document.createElement("iframe");
     f.src = u; f.title = "Episode " + epNum(currentEpisode, curIdx);
@@ -1175,15 +1218,64 @@ function detail(a, wantEp) {
       message("That is not a direct video URL. Use an HTTPS .mp4 or .m3u8 link, not a Hoshi episode page or embed link.");
       return;
     }
-    destroyDirect(); directMode = true; currentDirectUrl = url; directPanel.hidden = false;
+    destroyDirect(); directMode = true; currentDirectUrl = url; directPanel.hidden = true; sourceSwitch.hidden = false;
     sourceState.textContent = "Direct stream";
     frame.innerHTML = "";
     var stage = mk("div", "hdp-stage");
-    var video = mk("video", "hdp-video"); video.controls = true; video.playsInline = true;
+    var video = mk("video", "hdp-video"); video.controls = false; video.playsInline = true;
     video.preload = "metadata"; video.crossOrigin = "anonymous";
     activeVideo = video;
     overlay = mk("div", "hdp-subtitles"); overlay.setAttribute("aria-live", "off");
     stage.appendChild(video); stage.appendChild(overlay); frame.appendChild(stage);
+    // Native controls are replaced only for playable direct media, never for an iframe.
+    stage.tabIndex = 0; stage.setAttribute("aria-label", "Hoshi video player");
+    stage.classList.add("h4-paused");
+    var veil = mk("div", "h4-vignette"); stage.appendChild(veil);
+    var top = mk("div", "h4-top");
+    var brand = mk("div", "h4-mark"); brand.appendChild(mk("span", "h4-mark-dot", "✦"));
+    brand.appendChild(document.createTextNode("HOSHI / CINEMA"));
+    top.appendChild(brand); top.appendChild(mk("span", "h4-live", "DIRECT STREAM")); stage.appendChild(top);
+    var center = mk("button", "h4-center", "▶"); center.type = "button"; center.setAttribute("aria-label", "Play or pause"); stage.appendChild(center);
+    var controls = mk("div", "h4-controls");
+    var seek = mk("input", "h4-timeline"); seek.type = "range"; seek.min = "0"; seek.max = "1000"; seek.value = "0"; seek.step = "1"; seek.setAttribute("aria-label", "Seek video");
+    controls.appendChild(seek);
+    var bottom = mk("div", "h4-bottom");
+    function ctl(label, text) { var b = mk("button", "h4-control", text); b.type = "button"; b.title = label; b.setAttribute("aria-label",label); bottom.appendChild(b); return b; }
+    var play = ctl("Play / pause", "▶"), back = ctl("Back 10 seconds", "↶"), forward = ctl("Forward 10 seconds", "↷");
+    var time = mk("span", "h4-time", "0:00 / 0:00"); bottom.appendChild(time);
+    var volume = mk("input", "h4-volume"); volume.type="range"; volume.min="0"; volume.max="1"; volume.step="0.05"; volume.value="1"; volume.setAttribute("aria-label", "Volume"); bottom.appendChild(volume);
+    bottom.appendChild(mk("span", "h4-spacer"));
+    var caption = ctl("Subtitle and player settings", "CC"), pip = ctl("Picture in picture", "▣"), full = ctl("Fullscreen", "⛶");
+    caption.classList.add("h4-outline");
+    controls.appendChild(bottom); stage.appendChild(controls);
+    function formatTime(t) { t = Number.isFinite(t) ? Math.max(0, Math.floor(t)) : 0; var h = Math.floor(t/3600), m = Math.floor(t%3600/60), sec = t%60; return (h ? h + ":" + String(m).padStart(2,"0") : m) + ":" + String(sec).padStart(2,"0"); }
+    function sync() {
+      var duration = video.duration, valid = Number.isFinite(duration) && duration > 0;
+      if (document.activeElement !== seek) seek.value = valid ? String(Math.round(1000 * video.currentTime / duration)) : "0";
+      seek.disabled = !valid;
+      time.textContent = formatTime(video.currentTime) + " / " + (valid ? formatTime(duration) : "0:00");
+      play.textContent = video.paused ? "▶" : "Ⅱ";
+      center.textContent = video.paused ? "▶" : "Ⅱ";
+      stage.classList.toggle("h4-paused", video.paused);
+    }
+    function togglePlay() { if (video.paused) video.play().catch(function(){ message("Playback could not start. Try the embedded player."); }); else video.pause(); }
+    play.onclick = togglePlay; center.onclick = togglePlay;
+    back.onclick = function() { video.currentTime = Math.max(0, video.currentTime - 10); };
+    forward.onclick = function() { if (Number.isFinite(video.duration)) video.currentTime = Math.min(video.duration, video.currentTime + 10); };
+    seek.oninput = function() { if (Number.isFinite(video.duration) && video.duration > 0) video.currentTime = +seek.value / 1000 * video.duration; };
+    volume.oninput = function() { video.volume = +volume.value; video.muted = false; };
+    caption.onclick = function() { directPanel.hidden = !directPanel.hidden; };
+    pip.onclick = function() { if (document.pictureInPictureElement) document.exitPictureInPicture().catch(function(){}); else if (video.requestPictureInPicture) video.requestPictureInPicture().catch(function(){ message("Picture-in-picture is unavailable."); }); else message("Picture-in-picture is unavailable."); };
+    full.onclick = function() { if (document.fullscreenElement) document.exitFullscreen().catch(function(){}); else if (stage.requestFullscreen) stage.requestFullscreen().catch(function(){ message("Fullscreen is unavailable."); }); };
+    stage.addEventListener("keydown", function(e) {
+      if (e.target.tagName === "INPUT" || e.target.tagName === "BUTTON" || e.target.tagName === "SELECT") return;
+      if (e.key === " " || e.key.toLowerCase() === "k") { e.preventDefault(); togglePlay(); }
+      else if (e.key === "ArrowLeft") { e.preventDefault(); back.click(); }
+      else if (e.key === "ArrowRight") { e.preventDefault(); forward.click(); }
+      else if (e.key.toLowerCase() === "f") { e.preventDefault(); full.click(); }
+    });
+    ["timeupdate","durationchange","loadedmetadata","play","pause","ended","seeking"].forEach(function(ev) { video.addEventListener(ev,sync); });
+    h4Ui = {stage:stage, video:video, sync:sync}; sync();
     video.playbackRate = +(speedSelect.value || 1);
     video.addEventListener("timeupdate", videoCues);
     video.addEventListener("error", function() {
@@ -1215,7 +1307,7 @@ function detail(a, wantEp) {
     if (!directMode) {
       var d = episodeDirectUrl(currentEpisode, lang);
       if (d) { directInput.value = d; loadDirect(d); }
-      else message("This episode supplies an embed, not a direct stream. Paste a permitted HTTPS MP4/HLS URL to use custom subtitle controls.");
+      else message("No direct stream is available for this episode. Hoshi is keeping the embedded player; standalone subtitle styling applies only to direct streams.");
     }
   }
   function srtToVtt(txt) {
@@ -1226,6 +1318,7 @@ function detail(a, wantEp) {
   directButton.onclick = function() { if (directMode) directPanel.hidden = !directPanel.hidden; else openDirectPanel(); };
   directLoad.onclick = function() { loadDirect(directInput.value.trim()); };
   embedBack.onclick = function() { if (curIdx > -1) { ++streamLookupToken; preferEmbed = true; playIdx(curIdx, true); } };
+  sourceSwitch.onclick = embedBack.onclick;
   subFile.onchange = function() {
     if (!activeVideo || !subFile.files || !subFile.files[0]) { message("Start Direct Player before loading a subtitle file."); return; }
     var file = subFile.files[0];
@@ -1291,7 +1384,7 @@ function detail(a, wantEp) {
     var ep = episodes[i], u = streamFor(ep, lang), direct = episodeDirectUrl(ep, lang);
     if (!u && !direct) { alert("No " + lang.toUpperCase() + " stream available for this episode."); return; }
     if (curIdx !== i) preferEmbed = false;
-    destroyDirect(); directMode = false; directPanel.hidden = true; currentEpisode = ep;
+    destroyDirect(); directMode = false; directPanel.hidden = true; sourceSwitch.hidden = true; currentEpisode = ep;
     curIdx = i;
     var n = epNum(ep, i);
     pl.hidden = false;
@@ -1301,7 +1394,7 @@ function detail(a, wantEp) {
     // Prefer direct playback only for explicitly supplied playable media URLs.
     // Keep the working embed available if the direct source fails or is unwanted.
     if (direct && !preferEmbed) {
-      directPanel.hidden = false;
+      directPanel.hidden = true;
       directInput.value = direct;
       loadDirect(direct);
     } else if (u) {
@@ -1328,7 +1421,7 @@ function detail(a, wantEp) {
         // Combine subtitle metadata without mutating the source episode.
         currentEpisode = Object.assign({}, ep, { subtitles: found.subtitles });
         directInput.value = found.url;
-        directPanel.hidden = false;
+        directPanel.hidden = true;
         loadDirect(found.url);
       });
     }
