@@ -134,7 +134,7 @@ async function main() {
     timeoutMs: 10000
   });
 
-  const provider = new MegaPlayProvider(http);
+  const provider = new MegaPlayProvider(http, {   baseUrl: 'https://megaplay.buzz', });
 
   console.log('PROVIDER: INITIALISED');
 
