@@ -1,34 +1,67 @@
-# Hoshi Node stream metadata backend (v1)
 
-This service only serves streams that you have rights to distribute and that you explicitly configure. No DRM decryption, iframe interception, or CDN circumvention. Hoshi Player V3 continues to use the existing embed for missing streams.
+# Hoshi streaming metadata backend V2
 
-## Deploy on Render (Node web service)
 
-1. Create a new GitHub repository containing `server.mjs`, `package.json`, and `test.mjs` in its root. Connect it to Render as a **Web Service** with Node runtime.
-2. Build command: `npm install`; start command: `npm start`.
-3. Set environment variables:
-   - `BACKEND_TOKEN`: long, randomly generated secret. Do **not** put this in the Hoshi HTML.
-   - `MEDIA_HOSTS`: comma-separated exact HTTPS hostnames that you own or have permission to embed video from. Example for the public test: `test-streams.mux.dev`.
-   - `STREAM_CATALOG`: see below. This is for test/authorised videos only.
-4. Open your Render URL `/health` — expected `{"ok":true,"service":"hoshi-node",...}`.
-5. Do not expose the token in GitHub, browser code or screenshots.
+This does not fetch commercial anime videos, parse embeds, bypass DRM, or relay media. Only register video URLs that you may distribute. Keep your Anikoto embed as fallback.
 
-Example test catalog (this temporarily maps anime ID 8989 ep 1 to **Big Buck Bunny**, not to the real anime):
+## What's new
 
-```json
-{"8989:1:sub":{"type":"hls","url":"https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8","subtitles":[]}}
-```
+- Parses `#EXT-X-STREAM-INF` from an authorised HLS master playlist to return quality variants.
+- Parses HLS `#EXT-X-MEDIA:TYPE=SUBTITLES` entries with direct `.vtt` URLs, including quoted labels.
+- Merges explicit `subtitles` entries from `STREAM_CATALOG` with discovered `.vtt` tracks.
+- Updated Cloudflare bridge passes `qualities` metadata from Render to Hoshi while retaining the existing embed fallback.
+- Rejects discovered media URLs outside the configured HTTPS `MEDIA_HOSTS` allowlist.
+- Does not proxy video bytes or bypass browser CORS.
 
-## Worker bridge
+## Update your existing deployment
 
-Paste `worker-bridge.js` into the existing `hoshi-stream` Worker (not `anime-proxy`). The bridge preserves your current `STREAM_CATALOG` response when the Node backend is unavailable and forwards only validated `/resolve` calls when it is configured. Add two **secrets** to the Worker: `NODE_BACKEND_URL` (the Render HTTPS root URL) and `BACKEND_TOKEN` (same value as Render). Keep the existing `STREAM_CATALOG` during testing or clear it later to avoid the Big Buck Bunny episode override.
+1. GitHub: In your existing Hoshi-Anime-Tracker/backend/ folder replace server.mjs, test.mjs and README.md with files from this package. Optionally update package.json (version bump only). Commit the changes.
 
-The Hoshi Player V3 GitHub HTML calls `https://hoshi-stream.tasinsadman302.workers.dev/resolve` already: **no HTML change is needed.**
+2. Render: Keep the same Root Directory: backend, npm install, npm start, BACKEND_TOKEN and MEDIA_HOSTS. Keep STREAM_CATALOG={} now that you removed Big Buck Bunny.
+
+3. Visit your Render /health URL and confirm version: "2.0".
+
+4. Cloudflare: For the optional metadata-forwarding improvement, replace the hoshi-stream Worker only with worker-bridge.js. Keep NODE_BACKEND_URL, BACKEND_TOKEN and STREAM_CATALOG={}. Visit the Worker /health endpoint and confirm version: "2.1".
+
+5. GitHub Pages: No changes to your current Hoshi index.html needed.
+
+6. Test: cd backend && npm test (Node 20+).
+
+## Expected behaviour
+
+With both catalogs set to {}, requesting:
+
+/resolve?series=8989&episode=1&lang=sub
+
+on your Worker returns:
+
+{"type":"embed","available":false}
+
+Once you have an authorised playable stream, add it to Render STREAM_CATALOG:
+
+{
+  "demo:1:sub": {
+    "type": "hls",
+    "url": "https://your-authorised-media.example/series/episode/master.m3u8",
+    "subtitles": [
+      {
+        "lang": "en",
+        "label": "English",
+        "url": "https://your-authorised-media.example/series/episode/en.vtt"
+      }
+    ]
+  }
+}
+
+Add the actual media and subtitle hosts to Render MEDIA_HOSTS.
+
+Playback and subtitle files must be browser-accessible from https://chroma56.github.io and the provider must allow direct playback.
 
 ## Notes
 
-- The Node backend returns `qualities` read from the HLS master manifest. Your current V3 frontend will ignore this extra field for now; hls.js still handles adaptive quality.
-- Subtitle entries must be HTTPS `.vtt` files on approved hosts and allow browser CORS. The V3 player can load them.
-- Render may spin down free web services, so the Worker uses a short timeout and keeps the embed fallback.
-- `MEDIA_HOSTS` checks exact hosts and prevents caller-supplied arbitrary URLs. Never set it to `*`.
-- Run `npm test` to check the manifest parser and `npm start` to run locally.
+- HLS subtitle renditions whose URI points to .m3u8 are not advertised as direct WebVTT tracks.
+- Render free instances can sleep. The Cloudflare bridge has a 5.5-second backend timeout.
+- Keep BACKEND_TOKEN private and identical in Render and Cloudflare.
+- The Hoshi V3 frontend may need additional changes to display every quality option.
+- worker-bridge.js is deployed in Cloudflare, not executed by Render.
+- No external npm dependencies are needed.
