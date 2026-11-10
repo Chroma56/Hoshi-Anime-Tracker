@@ -1194,6 +1194,47 @@ function detail(a, wantEp) {
     playerPrefs.offset = offsetInput.value; playerPrefs.position = positionSelect.value; savePlayerPrefs(); videoCues();
   }; });
 
+  // MegaPlay's documented iframe progress messages. This does not access iframe
+  // media or subtitles and only accepts messages from the active iframe origin.
+  var lastEmbedProgressSave = 0;
+  window.addEventListener("message", function(event) {
+    if (!root.isConnected || pl.hidden || directMode || curIdx < 0) return;
+    var iframe = frame.querySelector("iframe");
+    if (!iframe || event.source !== iframe.contentWindow) return;
+    var expectedOrigin;
+    try { expectedOrigin = new URL(iframe.src).origin; } catch(e) { return; }
+    if (event.origin !== expectedOrigin || expectedOrigin !== "https://megaplay.buzz") return;
+    var msg = event.data;
+    if (typeof msg === "string") {
+      if (msg.length > 4096) return;
+      try { msg = JSON.parse(msg); } catch(e) { return; }
+    }
+    if (!msg || typeof msg !== "object" || Array.isArray(msg)) return;
+    var completed = msg.event === "complete";
+    var isTime = msg.event === "time" || msg.type === "watching-log";
+    if (!completed && !isTime) return;
+    var duration = Number(msg.duration);
+    var seconds = Number(msg.time ?? msg.currentTime);
+    if (isTime && (!Number.isFinite(seconds) || seconds < 0 ||
+        !Number.isFinite(duration) || duration <= 0 || duration > 86400)) return;
+    var number = String(epNum(episodes[curIdx], curIdx));
+    var progress = PROG[a.id] || (PROG[a.id] = {s:{}});
+    if (!progress.s) progress.s = {};
+    if (!progress.watch) progress.watch = {};
+    if (completed) {
+      var prior = progress.watch[number] || {};
+      progress.watch[number] = {seconds: prior.duration || 0, duration: prior.duration || 0, percent: 100, completed: true};
+    } else {
+      seconds = Math.min(seconds, duration);
+      progress.watch[number] = {seconds: Math.round(seconds), duration: Math.round(duration), percent: Math.round(seconds / duration * 100), completed: false};
+    }
+    progress.l = Number(number) || number;
+    progress.ts = Date.now();
+    if (completed || Date.now() - lastEmbedProgressSave >= 10000) {
+      saveProg(); lastEmbedProgressSave = Date.now();
+    }
+  });
+
   function playIdx(i, quiet) {
     var ep = episodes[i], u = streamFor(ep, lang), direct = episodeDirectUrl(ep, lang);
     if (!u && !direct) { alert("No " + lang.toUpperCase() + " stream available for this episode."); return; }
