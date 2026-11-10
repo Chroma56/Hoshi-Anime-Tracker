@@ -1,32 +1,94 @@
-// One-time Render build diagnostic: searches Anikoto and lists content units.
-// Does not resolve streams, fetch media, or print sensitive URLs.
-import { HttpClient, AnikotoProvider } from 'anime-sdk';
-import { exactTitleMatches } from './anikoto-provider.mjs';
 
-const title = 'Naruto';
-console.log('=== HOSHI ANIKOTO CATALOGUE TEST ===');
+/*
+ * Hoshi Automatic Anikoto Diagnostic V2.1
+ *
+ * Tests automatic title and episode matching.
+ * Does not request video streams.
+ */
+
+import {
+  fetchAniListTitles,
+  matchHoshiAnime,
+  matchHoshiEpisode
+} from './anikoto-provider.mjs';
+
+console.log('================================');
+console.log('HOSHI AUTO MATCH DIAGNOSTIC V2.1');
+console.log('================================');
+
 try {
-  const sdk = await import('anime-sdk');
-  console.log('AnikotoProvider:', typeof sdk.AnikotoProvider === 'function' ? 'AVAILABLE' : 'MISSING');
-  const provider = new AnikotoProvider(new HttpClient({ timeoutMs: 8000 }));
-  const results = await provider.search(title);
-  console.log('Search results:', Array.isArray(results) ? results.length : 'Unexpected response');
-  const exact = exactTitleMatches(results, title);
-  console.log('Exact title matches:', exact.length);
-  if (exact.length !== 1) {
-    console.log('RESULT:', exact.length ? 'AMBIGUOUS_MATCH' : 'NO_EXACT_MATCH');
+  const series = 'al20';
+
+  const metadata = await fetchAniListTitles(series);
+
+  console.log(
+    'ANILIST AVAILABLE:', metadata.available
+  );
+
+  console.log(
+    'TITLES:', JSON.stringify(
+      metadata.titles || []
+    )
+  );
+
+  if (!metadata.available) {
+    console.log('RESULT: ANILIST_FAILED');
   } else {
-    const units = await provider.fetchContentUnits(exact[0].id);
-    console.log('Content units:', Array.isArray(units) ? units.length : 'Unexpected response');
-    const sample = Array.isArray(units) ? units.slice(0, 3) : [];
-    for (const u of sample) {
-      console.log('Unit:', JSON.stringify({ id: u.id, number: u.number ?? u.episodeNumber ?? null, languages: u.availableLanguages ?? [] }));
+    const anime = await matchHoshiAnime(series);
+
+    console.log(
+      'ANIKOTO MATCHED:', anime.available
+    );
+
+    if (!anime.available) {
+      console.log(
+        'REASON:', anime.reason || 'Unknown'
+      );
+      console.log('RESULT: ANIKOTO_MATCH_FAILED');
+    } else {
+      console.log(
+        'ANIKOTO ANIME ID:', anime.animeId
+      );
+
+      const sub = await matchHoshiEpisode(
+        series, '1', 'sub'
+      );
+
+      const dub = await matchHoshiEpisode(
+        series, '1', 'dub'
+      );
+
+      console.log('SUB AVAILABLE:', sub.available);
+      console.log('DUB AVAILABLE:', dub.available);
+
+      if (sub.available) {
+        console.log(
+          'SUB EPISODE ID:', sub.episodeId
+        );
+      }
+
+      if (dub.available) {
+        console.log(
+          'DUB EPISODE ID:', dub.episodeId
+        );
+      }
+
+      console.log(
+        'RESULT:',
+        sub.available && dub.available
+          ? 'AUTO_MATCH_SUCCESS'
+          : sub.available || dub.available
+            ? 'PARTIAL_MATCH_SUCCESS'
+            : 'EPISODE_MATCH_FAILED'
+      );
     }
-    console.log('RESULT:', sample.length ? 'ANIKOTO_EPISODES_FOUND' : 'NO_EPISODES');
   }
 } catch (error) {
-  // Do not print upstream URLs, headers or credentials.
-  console.log('RESULT: SDK_REQUEST_FAILED');
-  console.log('Error category:', error?.name || 'Unknown');
+  console.log('RESULT: AUTO_MATCH_ERROR');
+  console.log(
+    'ERROR:',
+    String(error?.message || error).slice(0, 180)
+  );
 }
-console.log('No stream resolution or video download performed.');
+
+console.log('No video streams requested.');
