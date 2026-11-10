@@ -264,11 +264,32 @@ async function main() {
           : 'NO_STREAMS'
       );
 
-    } catch (error) {
-      console.log(
-        'DURATION_MS:',
-        Date.now() - started
-      );
+   
+} catch (error) {
+  console.log(
+    'DURATION_MS:',
+    Date.now() - started
+  );
+
+      
+  const safeMessage = String(error?.message || '')
+    .replace(/https?:\/\/[^\s"'<>]+/gi, '[URL_REDACTED]')
+    .replace(/\b[A-Za-z0-9_-]{40,}\b/g, '[VALUE_REDACTED]')
+    .slice(0, 300);
+
+  console.log('SAFE_ERROR_MESSAGE:', safeMessage);
+
+  // KEEP YOUR EXISTING CODE BELOW
+  console.log(
+    'RESOLVER ERROR:',
+    JSON.stringify(classify(error))
+  );
+
+  console.log('STATUS: RESOLVE_FAILED');
+}
+}
+
+console.log('RESULT: TEST_COMPLETE');
 
       console.log(
         'RESOLVER ERROR:',
