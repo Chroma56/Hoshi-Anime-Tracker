@@ -1,8 +1,7 @@
 
-// Hoshi V4 - Provider Adapter
-// Compatible with Hoshi Backend V3.1
-// Optional anime-sdk integration.
-// Do not enable unverified third-party video sources.
+ // Hoshi V4 Provider Adapter
+ // Compatible with Hoshi Render Backend V3.1.
+ // Direct video sources must be authorised for Hoshi playback.
 
 function hostSet(value) {
   return new Set(
@@ -24,12 +23,7 @@ export function providerUrl(value) {
       url.username ||
       url.password ||
       url.hash ||
-      url.search
-    ) {
-      return null;
-    }
-
-    if (
+      url.search ||
       !hostSet(process.env.PROVIDER_HOSTS)
         .has(url.hostname.toLowerCase())
     ) {
@@ -50,12 +44,7 @@ function mediaUrl(value, format) {
       url.protocol !== 'https:' ||
       url.username ||
       url.password ||
-      url.hash
-    ) {
-      return null;
-    }
-
-    if (
+      url.hash ||
       !hostSet(process.env.MEDIA_HOSTS)
         .has(url.hostname.toLowerCase())
     ) {
@@ -246,7 +235,23 @@ async function officialProvider(
   }
 }
 
-function getAniListId(series) {
+// Automatically recognise Hoshi's AniList IDs.
+// Example: al195539 becomes 195539.
+
+export function getAniListId(series) {
+  const value = String(
+    series || ''
+  ).trim();
+
+  const match = /^al([1-9]\d{0,9})$/.exec(
+    value
+  );
+
+  if (match) {
+    return match[1];
+  }
+
+  // Preserve manual mappings for other IDs.
   let mapping = {};
 
   try {
@@ -265,27 +270,28 @@ function getAniListId(series) {
     return null;
   }
 
-  let id = '';
-
   if (
     Object.prototype.hasOwnProperty.call(
       mapping,
-      series
+      value
     )
   ) {
-    id = String(mapping[series]);
-  } else if (
+    const id = String(mapping[value]);
+
+    return /^[1-9]\d{0,9}$/.test(id)
+      ? id
+      : null;
+  }
+
+  if (
     process.env.HOSHI_SERIES_IDS_ARE_ANILIST ===
-    'true'
+      'true' &&
+    /^[1-9]\d{0,9}$/.test(value)
   ) {
-    id = String(series);
+    return value;
   }
 
-  if (!/^[1-9]\d{0,9}$/.test(id)) {
-    return null;
-  }
-
-  return id;
+  return null;
 }
 
 let sdkPromise = null;
@@ -295,9 +301,12 @@ async function loadSdk() {
     sdkPromise = import('anime-sdk')
       .then(function (lib) {
         if (
-          typeof lib.HttpClient !== 'function' ||
-          typeof lib.AnilistMeta !== 'function' ||
-          typeof lib.MegaPlayProvider !== 'function'
+          typeof lib.HttpClient !==
+            'function' ||
+          typeof lib.AnilistMeta !==
+            'function' ||
+          typeof lib.MegaPlayProvider !==
+            'function'
         ) {
           throw new Error(
             'Required anime-sdk exports unavailable'
@@ -309,8 +318,11 @@ async function loadSdk() {
         });
 
         return {
-          metadata: new lib.AnilistMeta(http),
-          provider: new lib.MegaPlayProvider(http)
+          metadata: new lib.AnilistMeta(
+            http
+          ),
+          provider:
+            new lib.MegaPlayProvider(http)
         };
       })
       .catch(function (error) {
@@ -327,15 +339,17 @@ async function sdkProvider(
   episode,
   lang
 ) {
-  // Disabled until the selected video source
-  // permits direct playback on Hoshi.
+  // Leave disabled until playback use is authorised.
   if (
-    process.env.HOSHI_SDK_ENABLED !== 'true'
+    process.env.HOSHI_SDK_ENABLED !==
+    'true'
   ) {
     return null;
   }
 
-  const anilistId = getAniListId(series);
+  const anilistId = getAniListId(
+    series
+  );
 
   if (
     !anilistId ||
@@ -371,7 +385,10 @@ async function sdkProvider(
     }
 
     for (const stream of result.streams) {
-      if (!stream) {
+      if (
+        !stream ||
+        typeof stream !== 'object'
+      ) {
         continue;
       }
 
@@ -386,13 +403,15 @@ async function sdkProvider(
       let format;
 
       try {
-        const path = new URL(
+        const pathname = new URL(
           candidate
         ).pathname;
 
-        if (/\.m3u8$/i.test(path)) {
+        if (/\.m3u8$/i.test(pathname)) {
           format = 'hls';
-        } else if (/\.mp4$/i.test(path)) {
+        } else if (
+          /\.mp4$/i.test(pathname)
+        ) {
           format = 'mp4';
         } else {
           continue;
@@ -401,7 +420,7 @@ async function sdkProvider(
         continue;
       }
 
-      const normalized = normalizeDirect({
+      const direct = normalizeDirect({
         type: format,
         url: candidate,
         subtitles:
@@ -411,8 +430,8 @@ async function sdkProvider(
           []
       });
 
-      if (normalized) {
-        return normalized;
+      if (direct) {
+        return direct;
       }
     }
 
@@ -421,9 +440,8 @@ async function sdkProvider(
     console.warn(
       'Hoshi SDK unavailable:',
       String(
-        error && error.message
-          ? error.message
-          : error
+        (error && error.message) ||
+        error
       ).slice(0, 120)
     );
 
@@ -431,7 +449,9 @@ async function sdkProvider(
   }
 }
 
-// Required export for backend/server.mjs
+// Required by backend/server.mjs.
+// Do not remove this exported function.
+
 export async function providerEntry(
   series,
   episode,
@@ -449,19 +469,16 @@ export async function providerEntry(
     return null;
   }
 
-  // Prefer a configured, authorised API.
-  const official = await officialProvider(
+  const direct = await officialProvider(
     series,
     episode,
     lang
   );
 
-  if (official) {
-    return official;
+  if (direct) {
+    return direct;
   }
 
-  // Optional SDK resolver.
-  // Returns null if disabled or unavailable.
   return sdkProvider(
     series,
     episode,
