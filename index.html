@@ -299,6 +299,13 @@ html{overflow-x:clip}
 .v.has-bd .vgen span{background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.14);color:#e6e6ea}
 .v.has-bd .dclamp{color:#e0e0e5;text-shadow:0 1px 8px rgba(0,0,0,.55)}
 @media(max-width:760px){.vbackdrop{height:clamp(300px,52vh,460px)}.v.has-bd .vhead{margin-top:18px}}
+/* The player's bar (title, Prev/Next, settings, close) always sits under the video */
+.vplayer{display:flex;flex-direction:column}
+.vplayer[hidden]{display:none}
+.vplayer .vframe{order:1}
+.vplayer .vplh{order:2;border-bottom:0;border-top:1px solid var(--line)}
+.vplayer .hdp-panel{order:3}
+.hoshi-match-status{display:none!important}
 /* Watch layout: while an episode plays, the video leads, episodes sit in a side panel, details go below */
 .v.watching{max-width:none;display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:0 22px;align-items:start;grid-template-areas:"back back" "player eps" "head eps"}
 .v.watching>.vbackdrop{display:none}
@@ -2094,7 +2101,9 @@ function detail(a, wantEp) {
     // Watch layout: the video takes the page, episodes move to a side panel, details go below.
     root.classList.add("watching");
     plt.textContent = "Episode " + n + (epTitle(ep) ? " \u00b7 " + epTitle(ep) : "") + " \u00b7 " + lang.toUpperCase();
-    displayAnikotoMatch(ep, i, lang);
+    // The Anikoto match label is switched off (it only ever reported "unavailable").
+    // To bring it back: call displayAnikotoMatch(ep, i, lang) here and remove the
+    // .hoshi-match-status{display:none} rule in the stylesheet.
     frame.innerHTML = "";
     sourceState.textContent = direct ? "Direct source found" : (u ? "Checking direct source…" : "No embed source");
     // Prefer direct playback only for explicitly supplied playable media URLs.
