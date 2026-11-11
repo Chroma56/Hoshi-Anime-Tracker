@@ -299,6 +299,32 @@ html{overflow-x:clip}
 .v.has-bd .vgen span{background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.14);color:#e6e6ea}
 .v.has-bd .dclamp{color:#e0e0e5;text-shadow:0 1px 8px rgba(0,0,0,.55)}
 @media(max-width:760px){.vbackdrop{height:clamp(300px,52vh,460px)}.v.has-bd .vhead{margin-top:18px}}
+/* Watch layout: while an episode plays, the video leads, episodes sit in a side panel, details go below */
+.v.watching{max-width:none;display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:0 22px;align-items:start;grid-template-areas:"back back" "player eps" "head eps"}
+.v.watching>.vbackdrop{display:none}
+.v.watching>.back{grid-area:back;justify-self:start;margin-bottom:12px}
+.v.watching>.vplayer{grid-area:player;margin-top:0;display:flex;flex-direction:column;min-width:0}
+.v.watching>.vplayer[hidden]{display:none}
+.v.watching .vframe{order:1}
+.v.watching .vplh{order:2;border-bottom:0;border-top:1px solid var(--line);padding:14px 16px}
+.v.watching .vplt{font-size:18px;flex:1 1 260px;min-width:0}
+.v.watching .hdp-panel{order:3}
+.v.watching .hdp-stage{max-height:calc(100vh - 150px)}
+.v.watching .hdp-video{max-height:calc(100vh - 150px)}
+.v.watching>.veps{grid-area:eps;margin-top:0;position:sticky;top:12px;max-height:calc(100vh - 118px);overflow:auto;overscroll-behavior:contain;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px;scrollbar-width:thin;min-width:0}
+.v.watching>.veps .vbar{gap:8px}
+.v.watching>.veps .vbar h2{flex:1 0 100%;margin:0 0 2px}
+.v.watching>.veps .vfind{flex:1 1 120px;width:auto;min-width:0}
+.v.watching>.vhead{grid-area:head;margin-top:26px;min-width:0}
+.v.watching>.vhead .vposter{position:static}
+@media(max-width:1000px){
+.v.watching{display:flex;flex-direction:column;gap:0}
+.v.watching>.back{order:0;align-self:flex-start}
+.v.watching>.vplayer{order:1}
+.v.watching>.veps{order:2;position:relative;top:auto;max-height:none;overflow:visible;margin-top:20px;background:none;border:0;border-radius:0;padding:0}
+.v.watching>.vhead{order:3}
+.v.watching .hdp-stage,.v.watching .hdp-video{max-height:76vh}
+}
 .card .poster{transition:transform .18s ease}
 .card:hover .poster{transform:translateY(-3px)}
 @media(prefers-reduced-motion:reduce){.card .poster{transition:none}.card:hover .poster{transform:none}}
@@ -2065,7 +2091,9 @@ function detail(a, wantEp) {
     curIdx = i;
     var n = epNum(ep, i);
     pl.hidden = false;
-    plt.textContent = "Episode " + n + " \u00b7 " + lang.toUpperCase();
+    // Watch layout: the video takes the page, episodes move to a side panel, details go below.
+    root.classList.add("watching");
+    plt.textContent = "Episode " + n + (epTitle(ep) ? " \u00b7 " + epTitle(ep) : "") + " \u00b7 " + lang.toUpperCase();
     displayAnikotoMatch(ep, i, lang);
     frame.innerHTML = "";
     sourceState.textContent = direct ? "Direct source found" : (u ? "Checking direct source…" : "No embed source");
@@ -2164,7 +2192,7 @@ function detail(a, wantEp) {
   list.onclick = function(e) { var b = e.target.closest ? e.target.closest("[data-i]") : null; if (b) playIdx(+b.getAttribute("data-i")); };
   prev.onclick = function() { var i = nearest(-1); if (i > -1) playIdx(i); };
   next.onclick = function() { var i = nearest(1); if (i > -1) playIdx(i); };
-  close.onclick = function() { ++matchLookupToken; destroyDirect(); directPanel.hidden = true; directMode = false; pl.hidden = true; frame.innerHTML = ""; curIdx = -1; setSubUrl(a); draw(); };
+  close.onclick = function() { ++matchLookupToken; destroyDirect(); directPanel.hidden = true; directMode = false; pl.hidden = true; root.classList.remove("watching"); frame.innerHTML = ""; curIdx = -1; setSubUrl(a); draw(); };
   find.oninput = function() { clearTimeout(timer); timer = setTimeout(function() { query = find.value; draw(); }, 120); };
   bTiles.onclick = function() { view = "tiles"; bTiles.className = "on"; bList.className = ""; draw(); };
   bList.onclick = function() { view = "list"; bList.className = "on"; bTiles.className = ""; draw(); };
