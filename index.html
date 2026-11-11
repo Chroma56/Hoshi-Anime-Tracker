@@ -318,6 +318,31 @@ h2{font:800 24px "Bricolage Grotesque",sans-serif;margin:36px 0 2px}
 .h4-settings-title{font:800 15px "Bricolage Grotesque",sans-serif;margin-bottom:6px}
 @media(max-width:640px){.h4-top{top:9px;left:10px;right:10px}.h4-controls{padding:25px 8px 9px}.h4-bottom{gap:2px}.h4-control{width:30px;height:32px;font-size:15px}.h4-volume,.h4-kbd{display:none}.h4-time{font-size:10px}.h4-center{height:52px;width:52px;border-radius:17px}.hdp-panel{padding:12px}.vplh{padding:9px}}
 @media(prefers-reduced-motion:reduce){.h4-center,.h4-controls{transition:none}}
+/* Hoshi Player V4.1 — gestures, auto-hiding controls, skip, up next */
+.h4-gesture{position:absolute;inset:0;z-index:4;touch-action:manipulation;-webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
+.h4-top{transition:opacity .25s}
+.h4-control[hidden],.h4-skip[hidden],.h4-upnext[hidden],.h4-flash[hidden]{display:none}
+.hdp-stage.h4-idle{cursor:none}
+.hdp-stage.h4-idle .h4-controls,.hdp-stage.h4-idle .h4-top{opacity:0;pointer-events:none}
+.hdp-stage.h4-idle .h4-center,.hdp-stage.h4-wait .h4-center{opacity:0!important;pointer-events:none!important}
+.h4-flash{position:absolute;top:17%;left:50%;transform:translateX(-50%);z-index:6;background:#0c0c0dd9;border:1px solid #ffffff30;color:#fff;padding:7px 14px;border-radius:30px;font-size:13px;font-weight:700;font-variant-numeric:tabular-nums;pointer-events:none;white-space:nowrap}
+.h4-flash.h4-tag{top:8%}
+.h4-spinner{position:absolute;left:50%;top:50%;width:44px;height:44px;margin:-22px 0 0 -22px;border:3px solid #ffffff40;border-top-color:#fff;border-radius:50%;z-index:5;pointer-events:none;display:none;animation:h4spin .8s linear infinite}
+.hdp-stage.h4-wait .h4-spinner{display:block}
+@keyframes h4spin{to{transform:rotate(360deg)}}
+.h4-skip{position:absolute;right:18px;bottom:92px;z-index:6;background:#f5f5f4ee;color:#08080b;border:0;border-radius:10px;padding:9px 15px;font-family:inherit;font-weight:700;font-size:13px;cursor:pointer;box-shadow:0 8px 28px #0009}
+.h4-skip:hover,.h4-skip:focus-visible{background:#fff}
+.h4-upnext{position:absolute;right:18px;bottom:92px;z-index:7;width:min(280px,calc(100% - 36px));background:#101014f2;border:1px solid #ffffff30;border-radius:14px;padding:13px;display:grid;gap:7px;color:#fff;box-shadow:0 14px 44px #000b}
+.h4-upnext-label{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:#b9b9c2}
+.h4-upnext-title{font-weight:700;font-size:14px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.h4-upnext-actions{display:flex;gap:8px;margin-top:3px}
+.h4-upnext-actions button{border-radius:9px;padding:8px 12px;font-family:inherit;font-weight:700;font-size:12px;cursor:pointer;border:1px solid #ffffff40;background:transparent;color:#fff}
+.h4-upnext-actions .h4-upnext-play{flex:1;background:#f5f5f4;color:#08080b;border-color:transparent}
+.hdp-settings label.hdp-check{flex-direction:row;align-items:center;gap:7px}
+.hdp-stage:fullscreen{max-height:none;aspect-ratio:auto;width:100%;height:100%}
+.hdp-stage:fullscreen .hdp-video{max-height:none}
+@media(max-width:640px){.h4-skip,.h4-upnext{right:10px;bottom:70px}}
+@media(prefers-reduced-motion:reduce){.h4-top{transition:none}.h4-spinner{animation-duration:2.4s}}
 
 /* Hoshi Stage 5 — episode metadata match status */
 .hoshi-match-status{font-size:11px;color:#b0b0ba;line-height:1.35;max-width:350px;overflow-wrap:anywhere}
@@ -968,6 +993,9 @@ function detail(a, wantEp) {
   var bgInput = mk("input"); bgInput.type = "range"; bgInput.min = "0"; bgInput.max = "100"; bgInput.value = "55"; setting("Background", bgInput);
   var offsetInput = mk("input"); offsetInput.type = "number"; offsetInput.min = "-30"; offsetInput.max = "30"; offsetInput.step = "0.25"; offsetInput.value = "0"; offsetInput.style.width = "67px"; setting("Offset (s)", offsetInput);
   var positionSelect = mk("select"); [["bottom","Bottom"],["top","Top"]].forEach(function(x) { var o = mk("option", "", x[1]); o.value=x[0]; positionSelect.appendChild(o); }); setting("Position", positionSelect);
+  function check(label) { var box = mk("input"); box.type = "checkbox"; setting(label, box).parentNode.classList.add("hdp-check"); return box; }
+  var autoNextInput = check("Autoplay next episode");
+  var autoSkipInput = check("Skip intros automatically");
   directPanel.appendChild(settings);
   var playerStatus = mk("p", "hdp-status", "Embedded player active. Custom subtitle controls apply only to Direct Player."); directPanel.appendChild(playerStatus);
   var sourceSwitch = mk("button", "vbtn sm", "Switch to embed"); sourceSwitch.type = "button"; sourceSwitch.hidden = true; plh.insertBefore(sourceSwitch, close);
@@ -1068,8 +1096,17 @@ function detail(a, wantEp) {
   bgInput.value = playerPrefs.bg == null ? 55 : playerPrefs.bg;
   offsetInput.value = playerPrefs.offset || 0; positionSelect.value = playerPrefs.position || "bottom";
   speedSelect.value = playerPrefs.speed || "1";
+  autoNextInput.checked = playerPrefs.autoplayNext !== false; autoSkipInput.checked = playerPrefs.autoSkipIntro === true;
+  autoNextInput.onchange = autoSkipInput.onchange = function() {
+    playerPrefs.autoplayNext = autoNextInput.checked; playerPrefs.autoSkipIntro = autoSkipInput.checked; savePlayerPrefs();
+  };
   function message(t) { playerStatus.textContent = t; }
+  // Timers and listeners the current direct player set up; each loadDirect() fills this.
+  var directCleanups = [];
   function destroyDirect() {
+    // First, while the video still knows its position: save progress, stop timers.
+    var jobs = directCleanups; directCleanups = [];
+    jobs.forEach(function(job) { try { job(); } catch(e) {} });
     if (hlsInstance) { hlsInstance.destroy(); hlsInstance = null; }
     if (activeVideo) { activeVideo.pause(); activeVideo.removeAttribute("src"); activeVideo.load(); activeVideo = null; }
     overlay = null; h4Ui = null; currentSubtitleTracks = [];
@@ -1199,14 +1236,15 @@ function detail(a, wantEp) {
     var q = "?series=" + encodeURIComponent(seriesId) + "&episode=" + encodeURIComponent(episodeNumber) + "&lang=" + encodeURIComponent(selectedLang);
     return fetch(STREAM_API_BASE + "/resolve" + q, {
       headers: { "Accept": "application/json" },
-      signal: typeof AbortSignal !== "undefined" && AbortSignal.timeout ? AbortSignal.timeout(8000) : undefined
+      // The embed keeps playing while this waits, so a slow answer costs nothing.
+      signal: typeof AbortSignal !== "undefined" && AbortSignal.timeout ? AbortSignal.timeout(30000) : undefined
     })
       .then(function(r) { if (!r.ok) throw Error("Stream API HTTP " + r.status); return r.json(); })
       .then(function(v) {
         if (!v || v.type !== "direct" || v.available !== true) return null;
         var videoUrl = explicitVideoUrl({ type: v.format, url: v.url });
         if (!videoUrl) return null;
-        return { url: videoUrl, subtitles: Array.isArray(v.subtitles) ? v.subtitles : [] };
+        return { url: videoUrl, subtitles: Array.isArray(v.subtitles) ? v.subtitles : [], intro: v.intro || null, outro: v.outro || null };
       }).catch(function(err) { console.warn("Hoshi Stream API unavailable; using embed:", err.message || err); return null; });
   }
   // Stage 5: Hoshi -> Cloudflare /match -> Render -> Anikoto.
@@ -1215,7 +1253,7 @@ function detail(a, wantEp) {
   function lookUpAnikotoMatch(ep, index, selectedLang) {
     var ani = a.aniId || (a.raw && (a.raw.ani_id || a.raw.anilist_id));
     var epNumber = String(epNum(ep, index));
-    if (!/^\\d{1,10}$/.test(String(ani || "")) || !/^\\d{1,5}$/.test(epNumber))
+    if (!/^\d{1,10}$/.test(String(ani || "")) || !/^\d{1,5}$/.test(epNumber))
       return Promise.resolve({available:false,reason:"AniList ID unavailable"});
     var q = new URLSearchParams({
       series: "al" + String(ani),
@@ -1294,85 +1332,440 @@ function detail(a, wantEp) {
     destroyDirect(); directMode = true; currentDirectUrl = url; directPanel.hidden = true; sourceSwitch.hidden = false;
     sourceState.textContent = "Direct stream";
     frame.innerHTML = "";
+    // Everything below belongs to this one episode; destroyDirect() runs the cleanups.
+    var cleanups = directCleanups;
+    function onCleanup(fn) { cleanups.push(fn); }
+    function noop() {}
+    var episode = currentEpisode, episodeIndex = curIdx;
+    var episodeNumber = String(episode ? epNum(episode, episodeIndex) : "");
+    function chapter(r) {
+      var s = r ? Number(r.start) : NaN, e = r ? Number(r.end) : NaN;
+      return Number.isFinite(s) && Number.isFinite(e) && s >= 0 && e > s + 1 ? {start:s, end:e} : null;
+    }
+    var intro = chapter(episode && episode.intro), outro = chapter(episode && episode.outro);
+
     var stage = mk("div", "hdp-stage");
     var video = mk("video", "hdp-video"); video.controls = false; video.playsInline = true;
-    video.preload = "metadata"; video.crossOrigin = "anonymous";
+    video.preload = "auto"; video.crossOrigin = "anonymous";
     activeVideo = video;
     overlay = mk("div", "hdp-subtitles"); overlay.setAttribute("aria-live", "off");
     stage.appendChild(video); stage.appendChild(overlay); frame.appendChild(stage);
     // Native controls are replaced only for playable direct media, never for an iframe.
     stage.tabIndex = 0; stage.setAttribute("aria-label", "Hoshi video player");
-    stage.classList.add("h4-paused");
+    stage.classList.add("h4-paused"); stage.classList.add("h4-wait");
     var veil = mk("div", "h4-vignette"); stage.appendChild(veil);
+    // Clicks, taps, double taps and holds on the picture land here; buttons sit above it.
+    var gesture = mk("div", "h4-gesture"); stage.appendChild(gesture);
     var top = mk("div", "h4-top");
     var brand = mk("div", "h4-mark"); brand.appendChild(mk("span", "h4-mark-dot", "✦"));
     brand.appendChild(document.createTextNode("HOSHI / CINEMA"));
     top.appendChild(brand); top.appendChild(mk("span", "h4-live", "DIRECT STREAM")); stage.appendChild(top);
+    var spinner = mk("div", "h4-spinner"); spinner.setAttribute("aria-hidden", "true"); stage.appendChild(spinner);
+    var flashEl = mk("div", "h4-flash"); flashEl.hidden = true; stage.appendChild(flashEl);
+    var boostTag = mk("div", "h4-flash h4-tag", "2× speed"); boostTag.hidden = true; stage.appendChild(boostTag);
     var center = mk("button", "h4-center", "▶"); center.type = "button"; center.setAttribute("aria-label", "Play or pause"); stage.appendChild(center);
+    var skipBtn = mk("button", "h4-skip", ""); skipBtn.type = "button"; skipBtn.hidden = true; stage.appendChild(skipBtn);
+    var upCard = mk("div", "h4-upnext"); upCard.hidden = true; upCard.setAttribute("role", "dialog"); upCard.setAttribute("aria-label", "Up next");
+    var upTitle = mk("span", "h4-upnext-title", "");
+    var upActions = mk("div", "h4-upnext-actions");
+    var upPlay = mk("button", "h4-upnext-play", "▶ Play now"); upPlay.type = "button";
+    var upCancel = mk("button", "h4-upnext-cancel", "Cancel"); upCancel.type = "button";
+    upActions.appendChild(upPlay); upActions.appendChild(upCancel);
+    upCard.appendChild(mk("span", "h4-upnext-label", "Up next")); upCard.appendChild(upTitle); upCard.appendChild(upActions);
+    stage.appendChild(upCard);
     var controls = mk("div", "h4-controls");
     var seek = mk("input", "h4-timeline"); seek.type = "range"; seek.min = "0"; seek.max = "1000"; seek.value = "0"; seek.step = "1"; seek.setAttribute("aria-label", "Seek video");
     controls.appendChild(seek);
     var bottom = mk("div", "h4-bottom");
     function ctl(label, text) { var b = mk("button", "h4-control", text); b.type = "button"; b.title = label; b.setAttribute("aria-label",label); bottom.appendChild(b); return b; }
-    var play = ctl("Play / pause", "▶"), back = ctl("Back 10 seconds", "↶"), forward = ctl("Forward 10 seconds", "↷");
+    var play = ctl("Play / pause (K)", "▶"), back = ctl("Back 10 seconds (J)", "↶"), forward = ctl("Forward 10 seconds (L)", "↷");
+    var nextEp = ctl("Next episode (N)", "⏭︎"); nextEp.hidden = nearest(1) < 0;
     var time = mk("span", "h4-time", "0:00 / 0:00"); bottom.appendChild(time);
+    var mute = ctl("Mute (M)", "🔊︎");
     var volume = mk("input", "h4-volume"); volume.type="range"; volume.min="0"; volume.max="1"; volume.step="0.05"; volume.value="1"; volume.setAttribute("aria-label", "Volume"); bottom.appendChild(volume);
     bottom.appendChild(mk("span", "h4-spacer"));
-    var caption = ctl("Subtitle and player settings", "CC"), pip = ctl("Picture in picture", "▣"), full = ctl("Fullscreen", "⛶");
+    var caption = ctl("Subtitle and player settings", "CC"), pip = ctl("Picture in picture", "▣"), full = ctl("Fullscreen (F)", "⛶");
     caption.classList.add("h4-outline");
     controls.appendChild(bottom); stage.appendChild(controls);
+
     function formatTime(t) { t = Number.isFinite(t) ? Math.max(0, Math.floor(t)) : 0; var h = Math.floor(t/3600), m = Math.floor(t%3600/60), sec = t%60; return (h ? h + ":" + String(m).padStart(2,"0") : m) + ":" + String(sec).padStart(2,"0"); }
+    var flashTimer = 0;
+    function flash(text) {
+      flashEl.textContent = text; flashEl.hidden = false;
+      clearTimeout(flashTimer);
+      flashTimer = setTimeout(function() { flashEl.hidden = true; }, 1100);
+    }
+    onCleanup(function() { clearTimeout(flashTimer); });
+
+    // ── Seeking ──
+    // pendingSeek: arrow keys and double taps add up and are applied once (below).
+    // scrubbing: the timeline is being dragged; the video only seeks when it is let go.
+    var pendingSeek = null, seekTimer = 0, scrubbing = null;
     function sync() {
       var duration = video.duration, valid = Number.isFinite(duration) && duration > 0;
-      if (document.activeElement !== seek) seek.value = valid ? String(Math.round(1000 * video.currentTime / duration)) : "0";
+      var now = scrubbing !== null && valid ? scrubbing / 1000 * duration : pendingSeek ? pendingSeek.target : video.currentTime;
+      if (scrubbing === null) seek.value = valid ? String(Math.round(1000 * now / duration)) : "0";
       seek.disabled = !valid;
-      time.textContent = formatTime(video.currentTime) + " / " + (valid ? formatTime(duration) : "0:00");
+      time.textContent = formatTime(now) + " / " + (valid ? formatTime(duration) : "0:00");
       play.textContent = video.paused ? "▶" : "Ⅱ";
       center.textContent = video.paused ? "▶" : "Ⅱ";
+      mute.textContent = video.muted || video.volume === 0 ? "🔇︎" : "🔊︎";
+      if (document.activeElement !== volume) volume.value = String(video.muted ? 0 : video.volume);
       stage.classList.toggle("h4-paused", video.paused);
     }
-    function togglePlay() { if (video.paused) video.play().catch(function(){ message("Playback could not start. Try the embedded player."); }); else video.pause(); }
-    play.onclick = togglePlay; center.onclick = togglePlay;
-    back.onclick = function() { video.currentTime = Math.max(0, video.currentTime - 10); };
-    forward.onclick = function() { if (Number.isFinite(video.duration)) video.currentTime = Math.min(video.duration, video.currentTime + 10); };
-    seek.oninput = function() { if (Number.isFinite(video.duration) && video.duration > 0) video.currentTime = +seek.value / 1000 * video.duration; };
-    volume.oninput = function() { video.volume = +volume.value; video.muted = false; };
+    // Holding an arrow key fires a seek every few milliseconds, and a burst of seeks is what
+    // leaves the picture frozen while audio carries on. Presses are added up and applied once.
+    function seekBy(delta) {
+      var duration = video.duration;
+      if (!Number.isFinite(duration) || duration <= 0) return;
+      var base = pendingSeek ? pendingSeek.target : video.currentTime;
+      var target = Math.max(0, Math.min(duration - 0.5, base + delta));
+      pendingSeek = {target: target, total: (pendingSeek ? pendingSeek.total : 0) + delta};
+      flash((pendingSeek.total > 0 ? "+" : "−") + Math.abs(pendingSeek.total) + "s");
+      sync();
+      clearTimeout(seekTimer);
+      seekTimer = setTimeout(function() {
+        if (pendingSeek) video.currentTime = pendingSeek.target;
+        pendingSeek = null;
+      }, 160);
+    }
+    onCleanup(function() { clearTimeout(seekTimer); });
+    seek.oninput = function() { scrubbing = +seek.value; sync(); wake(); };
+    seek.onchange = function() {
+      var duration = video.duration;
+      if (Number.isFinite(duration) && duration > 0) video.currentTime = +seek.value / 1000 * duration;
+      scrubbing = null; sync();
+    };
+
+    // ── Play, volume, fullscreen ──
+    function togglePlay() {
+      if (video.paused || video.ended) video.play().catch(function() { message("Playback could not start. Try the embedded player."); });
+      else video.pause();
+    }
+    function setVolume(v) {
+      v = Math.max(0, Math.min(1, v));
+      video.volume = v; video.muted = v === 0;
+      playerPrefs.volume = v; savePlayerPrefs();
+    }
+    function toggleMute() {
+      video.muted = !video.muted;
+      if (!video.muted && video.volume === 0) setVolume(0.6);
+    }
+    function touchPhone() { return !!window.matchMedia && matchMedia("(pointer: coarse)").matches && Math.min(screen.width, screen.height) < 600; }
+    // Phones: fullscreen also turns the picture sideways. iPhone Safari cannot make a <div>
+    // fullscreen, so there the video element itself goes fullscreen with the system controls.
+    function toggleFullscreen() {
+      if (document.fullscreenElement) { document.exitFullscreen().catch(noop); return; }
+      if (stage.requestFullscreen) {
+        stage.requestFullscreen().then(function() {
+          if (touchPhone() && screen.orientation && screen.orientation.lock) screen.orientation.lock("landscape").catch(noop);
+        }).catch(function() {
+          if (video.webkitEnterFullscreen) video.webkitEnterFullscreen(); else message("Fullscreen is unavailable.");
+        });
+      } else if (video.webkitEnterFullscreen) video.webkitEnterFullscreen();
+      else message("Fullscreen is unavailable.");
+    }
+    function onFullscreenChange() {
+      if (!document.fullscreenElement && screen.orientation && screen.orientation.unlock) { try { screen.orientation.unlock(); } catch(e) {} }
+    }
+    document.addEventListener("fullscreenchange", onFullscreenChange);
+    onCleanup(function() { document.removeEventListener("fullscreenchange", onFullscreenChange); });
+    function goEpisode(dir) { var i = nearest(dir); if (i > -1) playIdx(i, true); }
+
+    play.onclick = togglePlay; center.onclick = function() { togglePlay(); wake(); };
+    back.onclick = function() { seekBy(-10); };
+    forward.onclick = function() { seekBy(10); };
+    nextEp.onclick = function() { goEpisode(1); };
+    mute.onclick = toggleMute;
+    volume.oninput = function() { setVolume(+volume.value); };
     caption.onclick = function() { directPanel.hidden = !directPanel.hidden; };
     pip.onclick = function() { if (document.pictureInPictureElement) document.exitPictureInPicture().catch(function(){}); else if (video.requestPictureInPicture) video.requestPictureInPicture().catch(function(){ message("Picture-in-picture is unavailable."); }); else message("Picture-in-picture is unavailable."); };
-    full.onclick = function() { if (document.fullscreenElement) document.exitFullscreen().catch(function(){}); else if (stage.requestFullscreen) stage.requestFullscreen().catch(function(){ message("Fullscreen is unavailable."); }); };
-    stage.addEventListener("keydown", function(e) {
-      if (e.target.tagName === "INPUT" || e.target.tagName === "BUTTON" || e.target.tagName === "SELECT") return;
-      if (e.key === " " || e.key.toLowerCase() === "k") { e.preventDefault(); togglePlay(); }
-      else if (e.key === "ArrowLeft") { e.preventDefault(); back.click(); }
-      else if (e.key === "ArrowRight") { e.preventDefault(); forward.click(); }
-      else if (e.key.toLowerCase() === "f") { e.preventDefault(); full.click(); }
+    full.onclick = toggleFullscreen;
+    var startVolume = Number(playerPrefs.volume);
+    if (Number.isFinite(startVolume) && startVolume >= 0 && startVolume <= 1) { video.volume = startVolume; video.muted = startVolume === 0; }
+
+    // ── Auto-hiding controls ──
+    var hideTimer = 0;
+    function wake() {
+      stage.classList.remove("h4-idle");
+      clearTimeout(hideTimer);
+      hideTimer = setTimeout(function() {
+        // Keep the controls up while paused or while the keyboard is on one of them.
+        if (!video.paused && !controls.contains(document.activeElement)) stage.classList.add("h4-idle");
+      }, 2600);
+    }
+    onCleanup(function() { clearTimeout(hideTimer); });
+    stage.addEventListener("mousemove", wake);
+    stage.addEventListener("mouseleave", function() { if (!video.paused && !controls.contains(document.activeElement)) stage.classList.add("h4-idle"); });
+    stage.addEventListener("focusin", wake);
+
+    // ── Mouse and touch on the picture ──
+    // Mouse: click to pause, double click for fullscreen. Touch: a tap shows or hides the
+    // controls, a double tap skips 10 seconds on either side (play/pause in the middle) and
+    // holding plays at 2×. Show or hide is decided at touch-down: the browser's compatibility
+    // mouse events re-show the controls before the tap ends.
+    var touched = false;
+    var g = {x:0, y:0, shown:true, moved:false, boosted:false, hold:0, timer:0, lastUp:0};
+    gesture.addEventListener("pointerdown", function(e) {
+      touched = e.pointerType === "touch";
+      if (!touched) return;
+      g.x = e.clientX; g.y = e.clientY; g.moved = false; g.boosted = false;
+      g.shown = !stage.classList.contains("h4-idle");
+      clearTimeout(g.hold);
+      g.hold = setTimeout(function() {
+        if (video.paused) return;
+        g.boosted = true; video.playbackRate = 2; boostTag.hidden = false;
+      }, 500);
     });
-    ["timeupdate","durationchange","loadedmetadata","play","pause","ended","seeking"].forEach(function(ev) { video.addEventListener(ev,sync); });
+    gesture.addEventListener("pointermove", function(e) {
+      if (e.pointerType !== "touch" || g.moved) return;
+      if (Math.hypot(e.clientX - g.x, e.clientY - g.y) > 12) { g.moved = true; clearTimeout(g.hold); }
+    });
+    function touchEnd(e) {
+      if (e.pointerType !== "touch") return;
+      clearTimeout(g.hold);
+      if (g.boosted) {
+        g.boosted = false; boostTag.hidden = true;
+        video.playbackRate = +(speedSelect.value || 1);
+        return;
+      }
+      if (g.moved || e.type === "pointercancel") return;
+      var r = gesture.getBoundingClientRect();
+      var x = r.width ? (e.clientX - r.left) / r.width : 0.5;
+      clearTimeout(g.timer);
+      if (e.timeStamp - g.lastUp < 300) {
+        g.lastUp = 0;
+        if (x < 0.38) seekBy(-10); else if (x > 0.62) seekBy(10); else togglePlay();
+        return;
+      }
+      g.lastUp = e.timeStamp;
+      var shown = g.shown;
+      g.timer = setTimeout(function() {
+        if (shown && !video.paused) { clearTimeout(hideTimer); stage.classList.add("h4-idle"); }
+        else wake();
+      }, 300);
+    }
+    gesture.addEventListener("pointerup", touchEnd);
+    gesture.addEventListener("pointercancel", touchEnd);
+    gesture.addEventListener("contextmenu", function(e) { if (touched) e.preventDefault(); });
+    gesture.addEventListener("click", function() { stage.focus({preventScroll:true}); if (!touched) togglePlay(); });
+    gesture.addEventListener("dblclick", function() { if (!touched) toggleFullscreen(); });
+    onCleanup(function() { clearTimeout(g.hold); clearTimeout(g.timer); });
+
+    // ── Keyboard (while the player has focus) ──
+    stage.addEventListener("keydown", function(e) {
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      var tag = e.target.tagName;
+      if (tag === "INPUT" || tag === "SELECT" || tag === "TEXTAREA") return;
+      var k = e.key.toLowerCase();
+      // Space and Enter on a focused button press that button.
+      if (tag === "BUTTON" && (k === " " || k === "enter")) return;
+      if (k === " " || k === "k") togglePlay();
+      else if (k === "arrowleft") seekBy(-5);
+      else if (k === "arrowright") seekBy(5);
+      else if (k === "j") seekBy(-10);
+      else if (k === "l") seekBy(10);
+      else if (k === "arrowup") setVolume(video.volume + 0.05);
+      else if (k === "arrowdown") setVolume(video.volume - 0.05);
+      else if (k === "m") toggleMute();
+      else if (k === "f") toggleFullscreen();
+      else if (k === "n") goEpisode(1);
+      else if (k === "p") goEpisode(-1);
+      else if (k === "s" && inIntro()) skipIntro();
+      else if (k === "c" && currentSubtitleTracks.length) {
+        var i = +subSelect.value + 1;
+        subSelect.value = String(i >= currentSubtitleTracks.length ? -1 : i);
+        subSelect.onchange();
+        flash(subSelect.value === "-1" ? "Subtitles off" : "Subtitles: " + (currentSubtitleTracks[+subSelect.value].label || "on"));
+      }
+      else if (k >= "0" && k <= "9" && k.length === 1 && Number.isFinite(video.duration)) video.currentTime = video.duration * Number(k) / 10;
+      else return;
+      e.preventDefault();
+      wake();
+    });
+
+    // ── Progress: saved like the embed's, so an episode resumes where it stopped ──
+    var saved = PROG[a.id] && PROG[a.id].watch && PROG[a.id].watch[episodeNumber];
+    var startAt = saved && !saved.completed && saved.seconds > 5 && (!saved.duration || saved.seconds < saved.duration - 15) ? Number(saved.seconds) || 0 : 0;
+    var watched = false;
+    function saveWatch() {
+      var duration = video.duration, seconds = video.currentTime;
+      if (!episodeNumber || !Number.isFinite(duration) || duration <= 0 || duration > 86400 || !Number.isFinite(seconds)) return;
+      // Nothing has played yet (a resume is still pending): don't overwrite the saved position.
+      if (seconds < 1 && startAt > 0) return;
+      if (seconds / duration > 0.9 || (outro && seconds >= outro.start)) watched = true;
+      var progress = PROG[a.id] || (PROG[a.id] = {s:{}});
+      if (!progress.watch) progress.watch = {};
+      progress.watch[episodeNumber] = {seconds: Math.round(Math.min(seconds, duration)), duration: Math.round(duration), percent: watched ? 100 : Math.round(seconds / duration * 100), completed: watched};
+      progress.ts = Date.now();
+      saveProg();
+    }
+    var progressTimer = setInterval(function() { if (!video.paused) saveWatch(); }, 5000);
+    onCleanup(function() { clearInterval(progressTimer); saveWatch(); });
+    video.addEventListener("pause", saveWatch);
+
+    // ── Intro and credits ──
+    var introSkipped = false;
+    function inIntro() { return !!intro && video.currentTime >= intro.start && video.currentTime < intro.end - 1; }
+    function inOutro() { return !!outro && video.currentTime >= outro.start && video.currentTime < outro.end - 1; }
+    function skipIntro() { if (intro) { introSkipped = true; video.currentTime = intro.end; } }
+    skipBtn.onclick = function() { if (skipBtn.dataset.action === "next") goEpisode(1); else skipIntro(); wake(); };
+
+    // ── Up next ──
+    var upTimer = 0, upLeft = 0, upDismissed = false;
+    function hideUpNext() { clearInterval(upTimer); upTimer = 0; upCard.hidden = true; }
+    function showUpNext(seconds) {
+      var ni = nearest(1);
+      if (ni < 0 || curIdx !== episodeIndex || !upCard.hidden) return;
+      var name = epTitle(episodes[ni]);
+      upTitle.textContent = "Episode " + epNum(episodes[ni], ni) + (name ? " · " + name : "");
+      upCard.hidden = false;
+      if (autoNextInput.checked === false || upDismissed) { upPlay.textContent = "▶ Play now"; return; }
+      upLeft = seconds;
+      upPlay.textContent = "▶ Playing in " + upLeft;
+      upTimer = setInterval(function() {
+        // The countdown waits while the video is paused part-way through the credits.
+        if (video.paused && !video.ended) return;
+        upLeft--;
+        if (upLeft <= 0) { hideUpNext(); goEpisode(1); }
+        else upPlay.textContent = "▶ Playing in " + upLeft;
+      }, 1000);
+    }
+    upPlay.onclick = function() { hideUpNext(); goEpisode(1); };
+    upCancel.onclick = function() { upDismissed = true; hideUpNext(); };
+    onCleanup(function() { clearInterval(upTimer); });
+
+    function chapters() {
+      if (inIntro() && autoSkipInput.checked && !introSkipped) { skipIntro(); flash("Skipped intro"); }
+      var hasNext = nearest(1) > -1;
+      // Credits started: offer the next episode while they roll.
+      if (inOutro() && hasNext && autoNextInput.checked && !upDismissed && upCard.hidden) showUpNext(10);
+      var action = inIntro() && !autoSkipInput.checked ? "intro" : inOutro() && hasNext && upCard.hidden ? "next" : "";
+      skipBtn.hidden = !action;
+      if (action && skipBtn.dataset.action !== action) {
+        skipBtn.dataset.action = action;
+        skipBtn.textContent = action === "intro" ? "Skip intro" : "Next episode";
+      }
+    }
+    video.addEventListener("timeupdate", chapters);
+    video.addEventListener("ended", function() {
+      watched = true; saveWatch();
+      stage.classList.remove("h4-idle");
+      showUpNext(5);
+    });
+
+    // ── Waiting spinner ──
+    function setWaiting(on) { stage.classList.toggle("h4-wait", on); }
+    video.addEventListener("waiting", function() { setWaiting(true); });
+    ["loadedmetadata","canplay","playing","error"].forEach(function(ev) { video.addEventListener(ev, function() { setWaiting(false); }); });
+    video.addEventListener("play", wake);
+    video.addEventListener("pause", function() { clearTimeout(hideTimer); stage.classList.remove("h4-idle"); });
+
+    // ── Watchdog for a frozen picture ──
+    // Time moves on but no new frame has been shown for several seconds. Rebuilding the
+    // decoder pipeline brings the video back in place.
+    if (video.requestVideoFrameCallback) {
+      var lastFrame = performance.now(), lastTime = 0, frameHandle = 0;
+      var onFrame = function() { lastFrame = performance.now(); frameHandle = video.requestVideoFrameCallback(onFrame); };
+      frameHandle = video.requestVideoFrameCallback(onFrame);
+      var watchdog = setInterval(function() {
+        var moving = video.currentTime - lastTime > 0.5;
+        lastTime = video.currentTime;
+        if (video.paused || video.seeking || video.readyState < 3 || document.hidden || document.pictureInPictureElement === video || !moving) { lastFrame = performance.now(); return; }
+        if (performance.now() - lastFrame > 4000 && hlsInstance) { lastFrame = performance.now(); hlsInstance.recoverMediaError(); }
+      }, 1000);
+      onCleanup(function() { clearInterval(watchdog); try { video.cancelVideoFrameCallback(frameHandle); } catch(e) {} });
+    }
+
+    // ── Media keys and the system's media controls ──
+    if ("mediaSession" in navigator && window.MediaMetadata) {
+      var mediaActions = {
+        play: function() { video.play().catch(noop); },
+        pause: function() { video.pause(); },
+        seekbackward: function() { seekBy(-10); },
+        seekforward: function() { seekBy(10); },
+        previoustrack: nearest(-1) > -1 ? function() { goEpisode(-1); } : null,
+        nexttrack: nearest(1) > -1 ? function() { goEpisode(1); } : null
+      };
+      try { navigator.mediaSession.metadata = new MediaMetadata({title: "Episode " + episodeNumber, artist: String(a.title || ""), album: "Hoshi"}); } catch(e) {}
+      Object.keys(mediaActions).forEach(function(name) { try { navigator.mediaSession.setActionHandler(name, mediaActions[name]); } catch(e) {} });
+      onCleanup(function() {
+        try { navigator.mediaSession.metadata = null; } catch(e) {}
+        Object.keys(mediaActions).forEach(function(name) { try { navigator.mediaSession.setActionHandler(name, null); } catch(e) {} });
+      });
+    }
+
+    ["timeupdate","durationchange","loadedmetadata","play","pause","ended","seeking","volumechange"].forEach(function(ev) { video.addEventListener(ev,sync); });
     h4Ui = {stage:stage, video:video, sync:sync}; sync();
     video.playbackRate = +(speedSelect.value || 1);
     video.addEventListener("timeupdate", videoCues);
     video.addEventListener("error", function() {
+      // hls.js reports and recovers its own errors; this covers MP4 and native HLS only.
+      if (hlsInstance) return;
       if (activeVideo === video && directMode) restoreEpisodeEmbed();
     });
     var subs = directSubtitles(currentEpisode);
     subs.forEach(attachSubtitle); updateSubOptions();
     qualitySelect.innerHTML = ""; var auto = mk("option", "", "Auto"); auto.value = "-1"; qualitySelect.appendChild(auto); qualitySelect.disabled = true;
     message("Direct Player active. Subtitle tracks must be accessible to your browser (CORS). Embedded players are separate.");
-    if (videoType(url) !== "hls") { video.removeAttribute("crossorigin"); video.src = url; video.load(); return; }
-    if (video.canPlayType("application/vnd.apple.mpegurl")) { video.removeAttribute("crossorigin"); video.src = url; video.load(); return; }
+    function start() {
+      // Browsers may refuse to start with sound when no click led here; the play button then stays up.
+      video.play().catch(noop);
+    }
+    // MP4 and the browser's own HLS: the browser loads the address itself.
+    function playNative() {
+      video.removeAttribute("crossorigin");
+      video.addEventListener("loadedmetadata", function() {
+        if (startAt > 0 && startAt < video.duration - 5) { video.currentTime = startAt; flash("Resumed at " + formatTime(startAt)); }
+        start();
+      }, {once:true});
+      video.src = url; video.load();
+    }
+    if (videoType(url) !== "hls") { playNative(); return; }
+    // hls.js first wherever it works: it gives the quality menu and error recovery. The browser's
+    // own HLS (iPhone Safari, and now some desktop browsers) is the fallback, not the first choice.
+    var nativeHls = !!video.canPlayType("application/vnd.apple.mpegurl");
     loadHlsLibrary().then(function(Hls) {
       if (activeVideo !== video) return;
-      if (!Hls.isSupported()) { message("HLS playback is not supported by this browser."); return; }
-      var h = new Hls(); hlsInstance = h;
+      if (!Hls.isSupported()) {
+        if (nativeHls) playNative(); else message("HLS playback is not supported by this browser.");
+        return;
+      }
+      var h = new Hls({startPosition: startAt > 0 ? startAt : -1}); hlsInstance = h;
+      var networkRetries = 0, mediaRecoveries = 0, manifestReady = false;
       h.on(Hls.Events.MANIFEST_PARSED, function() {
+        if (manifestReady) return;
+        manifestReady = true;
         qualitySelect.disabled = false;
         h.levels.forEach(function(level, i) { var opt = mk("option", "", (level.height || "?") + "p"); opt.value = String(i); qualitySelect.appendChild(opt); });
+        if (startAt > 0) flash("Resumed at " + formatTime(startAt));
+        start();
       });
+      // A fatal error is not the end: network errors get two retries and decode errors two
+      // decoder rebuilds before Hoshi gives up and goes back to the embed.
       h.on(Hls.Events.ERROR, function(_event, data) {
-        if (data && data.fatal && activeVideo === video && directMode) restoreEpisodeEmbed();
+        if (!data || !data.fatal || activeVideo !== video || !directMode || hlsInstance !== h) return;
+        if (data.type === Hls.ErrorTypes.NETWORK_ERROR && networkRetries < 2) {
+          networkRetries++;
+          message("The stream stopped loading. Retrying (" + networkRetries + " of 2)…");
+          setTimeout(function() {
+            if (hlsInstance !== h) return;
+            // Before the playlist has loaded there is nothing to resume, so ask for it again.
+            if (manifestReady) h.startLoad(); else h.loadSource(url);
+          }, 800 * networkRetries);
+        } else if (data.type === Hls.ErrorTypes.MEDIA_ERROR && mediaRecoveries < 2) {
+          mediaRecoveries++;
+          h.recoverMediaError();
+        } else {
+          console.warn("Hoshi direct player gave up:", data.type, data.details, data.response && data.response.code);
+          restoreEpisodeEmbed();
+        }
       });
       h.loadSource(url); h.attachMedia(video);
-    }).catch(function(e) { message(e.message || "HLS library unavailable"); });
+    }).catch(function(e) {
+      if (activeVideo !== video) return;
+      if (nativeHls) playNative(); else message(e.message || "HLS library unavailable");
+    });
   }
   function openDirectPanel() {
     if (curIdx < 0) return;
@@ -1494,6 +1887,8 @@ function detail(a, wantEp) {
         sourceState.textContent = "Direct source found";
         // Combine subtitle metadata without mutating the source episode.
         currentEpisode = Object.assign({}, ep, { subtitles: found.subtitles });
+        if (found.intro) currentEpisode.intro = found.intro;
+        if (found.outro) currentEpisode.outro = found.outro;
         directInput.value = found.url;
         directPanel.hidden = true;
         loadDirect(found.url);
