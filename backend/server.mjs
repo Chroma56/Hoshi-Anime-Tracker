@@ -50,10 +50,14 @@ function catalog() {
   try { const c = JSON.parse(process.env.STREAM_CATALOG || '{}'); return c && typeof c === 'object' && !Array.isArray(c) ? c : {}; }
   catch { return {}; }
 }
+// MEDIA_HOSTS entries are exact host names, or "*.example.com" for every subdomain of
+// example.com (CDNs that hand out a different random subdomain per episode).
+const HOST_SUFFIXES = [...HOSTS].filter(h => h.startsWith('*.') && h.length > 3).map(h => h.slice(1));
+function hostListed(host) { return HOSTS.has(host) || HOST_SUFFIXES.some(suffix => host.endsWith(suffix) && host.length > suffix.length); }
 function hostAllowed(value, extension) {
   try {
     const u = new URL(value);
-    if (u.protocol !== 'https:' || u.port || u.username || u.password || u.hash || !HOSTS.has(u.hostname.toLowerCase())) return null;
+    if (u.protocol !== 'https:' || u.port || u.username || u.password || u.hash || !hostListed(u.hostname.toLowerCase())) return null;
     if (net.isIP(u.hostname) || u.hostname.toLowerCase() === 'localhost') return null;
     if (extension && !extension.test(u.pathname)) return null;
     return u.href;
