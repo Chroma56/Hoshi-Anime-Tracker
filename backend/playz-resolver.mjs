@@ -29,6 +29,50 @@ const MAX_PLAYLIST = 1024 * 1024;
 const CACHE_TTL = 5 * 60 * 1000;
 const cache = new Map();
 
+const USER_AGENT =
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) ' +
+  'AppleWebKit/537.36 (KHTML, like Gecko) ' +
+  'Chrome/130.0.0.0 Safari/537.36';
+
+// The embed's player asks this file which CDN mirror
+// to use when the usual one fails. Kept for 10 minutes.
+let mirror = null;
+
+async function fallbackMirror() {
+  if (
+    mirror &&
+    Date.now() - mirror.at < 10 * 60 * 1000
+  ) {
+    return mirror.host;
+  }
+
+  let host = null;
+
+  try {
+    const data = JSON.parse(
+      await getText(
+        `${EMBED_ORIGIN}/lib/check_domain.json` +
+        `?cache_burst=${Date.now()}`,
+        { Referer: `${EMBED_ORIGIN}/` },
+        MAX_JSON
+      )
+    );
+
+    if (
+      typeof data?.fallback === 'string' &&
+      /^[a-z0-9.-]+$/i.test(data.fallback)
+    ) {
+      host = data.fallback.toLowerCase();
+    }
+  } catch {
+    // No mirror known; the usual host is tried alone.
+  }
+
+  mirror = { at: Date.now(), host };
+
+  return host;
+}
+
 // ============================================
 // CONFIGURATION
 // ============================================
@@ -186,6 +230,9 @@ async function getText(
         method: 'GET',
         timeout: 12000,
         headers: {
+          // Without a browser User-Agent the embed host
+          // and its CDN tend to answer 403.
+          'User-Agent': USER_AGENT,
           Accept: '*/*',
           ...headers
         },
@@ -489,6 +536,28 @@ function logTrackAnalysis(root) {
 
     validationSummary: reasons,
 
+    // Host names only (no paths or tokens): these are
+    // what MEDIA_HOSTS is missing when tracks are refused.
+    unapprovedHosts: [
+      ...new Set(
+        tracks.flatMap(track => {
+          if (inspectTrack(track).reason !== 'unapprovedHost') {
+            return [];
+          }
+
+          try {
+            return [
+              new URL(
+                track.file ?? track.url ?? track.src
+              ).hostname.toLowerCase()
+            ];
+          } catch {
+            return [];
+          }
+        })
+      )
+    ].slice(0, 10),
+
     approvedHostCount:
       allowedHosts().size
   };
@@ -504,11 +573,24 @@ function logTrackAnalysis(root) {
 // SUBTITLE EXTRACTION
 // ============================================
 
-function trackList(root) {
+// everyKind: also return thumbnail and sprite tracks.
+// Those are not subtitles, but they sit in the same
+// folder, which is what folder discovery looks for.
+function trackList(root, everyKind = false) {
   const seen = new Set();
   const subtitles = [];
 
   for (const track of allTracks(root).slice(0, 80)) {
+    if (
+      !everyKind &&
+      typeof track?.kind === 'string' &&
+      !['captions', 'subtitles'].includes(
+        track.kind.toLowerCase()
+      )
+    ) {
+      continue;
+    }
+
     const inspection = inspectTrack(track);
 
     if (
@@ -636,11 +718,11 @@ function clearCandidates(root) {
 
   // Only enable when explicitly authorized.
   if (enabled('MEGAPLAY_FOLDER_DISCOVERY')) {
-    for (const track of trackList(root)) {
+    for (const track of trackList(root, true)) {
       const url = new URL(track.url);
 
       const match =
-        /^(.+?)\/(?:subtitles|sprites|thumbnails)\/.+$/i
+        /^(.+?)\/(?:subtitles|sprites?|thumbnails?)\/.+$/i
           .exec(url.pathname);
 
       if (!match) continue;
@@ -757,18 +839,49 @@ async function browserCandidate(embedUrl) {
     return null;
   }
 
+  // The player only asks for its playlist once it
+  // starts playing, so autoplay has to be allowed.
   const browser = await chromium.launch({
-    headless: true
+    headless: true,
+    args: [
+      '--mute-audio',
+      '--autoplay-policy=no-user-gesture-required'
+    ]
   });
 
   try {
     const context = await browser.newContext({
+      userAgent: USER_AGENT,
+      viewport: { width: 960, height: 540 },
       serviceWorkers: 'block'
     });
 
     try {
       const page = await context.newPage();
       const found = new Set();
+
+      // Popups are never the player; close them at once.
+      context.on('page', other => {
+        if (other !== page) {
+          other.close().catch(() => {});
+        }
+      });
+
+      // Pictures, fonts and video bytes are not needed
+      // to see which playlist the player asks for.
+      await page.route('**/*', route => {
+        const type = route.request().resourceType();
+
+        return ['image', 'font', 'media'].includes(type)
+          ? route.abort()
+          : route.continue();
+      });
+
+      let sawPlaylist = () => {};
+
+      const firstPlaylist = new Promise(resolve => {
+        sawPlaylist = resolve;
+      });
 
       page.on('request', request => {
         const url = request.url();
@@ -778,19 +891,56 @@ async function browserCandidate(embedUrl) {
           approvedMedia(url)
         ) {
           found.add(url);
+          sawPlaylist();
         }
       });
 
+      const deadline = Date.now() + 18000;
+
       await page.goto(embedUrl, {
-        waitUntil: 'domcontentloaded',
+        referer: `${EMBED_ORIGIN}/`,
+        waitUntil: 'commit',
         timeout: 12000
       });
 
-      if (!found.size) {
-        await page.waitForTimeout(5000);
+      // Wait for the first playlist request rather than a
+      // fixed pause, then a moment more: a second playlist
+      // often follows right after the first.
+      const timedOut = await Promise.race([
+        firstPlaylist.then(() => false),
+        new Promise(resolve => setTimeout(
+          () => resolve(true),
+          Math.max(0, deadline - Date.now())
+        ))
+      ]);
+
+      if (!timedOut) {
+        await page.waitForTimeout(900);
       }
 
-      for (const url of found) {
+      // Masters before media playlists. The player's own
+      // copy can carry a token that expires within minutes;
+      // the same address without it is tried first.
+      const ordered = [];
+
+      for (const url of [...found].sort((x, y) =>
+        Number(/master|playlist|index/i.test(y)) -
+        Number(/master|playlist|index/i.test(x))
+      )) {
+        if (/[?&]token=/.test(url)) {
+          const bare = approvedMedia(url.split('?')[0]);
+
+          if (bare && !ordered.includes(bare)) {
+            ordered.push(bare);
+          }
+        }
+
+        if (!ordered.includes(url)) {
+          ordered.push(url);
+        }
+      }
+
+      for (const url of ordered.slice(0, 6)) {
         const text = await getText(
           url,
           {
@@ -963,12 +1113,63 @@ export async function resolvePlayzStyle(
     }
 
     // ----------------------------------------
+    // CDN MIRROR
+    // ----------------------------------------
+    // Each folder candidate is also tried on the
+    // mirror host, when that host is on MEDIA_HOSTS.
+
+    if (
+      candidates.length &&
+      enabled('MEGAPLAY_FOLDER_DISCOVERY')
+    ) {
+      const alt = await fallbackMirror();
+
+      if (alt) {
+        for (const candidate of [...candidates]) {
+          const url = new URL(candidate);
+
+          if (url.hostname === alt) continue;
+
+          url.hostname = alt;
+
+          const mirrored = approvedMedia(url.href);
+
+          if (
+            mirrored &&
+            !candidates.includes(mirrored)
+          ) {
+            candidates.push(mirrored);
+          }
+        }
+      }
+    }
+
+    // ----------------------------------------
     // SUBTITLES
     // ----------------------------------------
 
     const subtitles = trackList(
       payload
     );
+
+    // Intro and credits times, if the metadata carries
+    // them. server.mjs validates the numbers.
+    const chapters = {};
+
+    for (const layer of payloadLayers(payload)) {
+      for (const name of ['intro', 'outro']) {
+        if (
+          !chapters[name] &&
+          layer[name] &&
+          typeof layer[name] === 'object'
+        ) {
+          chapters[name] = {
+            start: layer[name].start,
+            end: layer[name].end
+          };
+        }
+      }
+    }
 
     let result = null;
 
@@ -1002,7 +1203,8 @@ export async function resolvePlayzStyle(
             referer:
               `${EMBED_ORIGIN}/`,
 
-            subtitles
+            subtitles,
+            ...chapters
           };
 
           break;
@@ -1039,7 +1241,8 @@ export async function resolvePlayzStyle(
           referer:
             `${EMBED_ORIGIN}/`,
 
-          subtitles
+          subtitles,
+          ...chapters
         };
       }
     }
