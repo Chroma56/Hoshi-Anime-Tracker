@@ -106,13 +106,13 @@ check('Signed media URLs', function () {
 
   assert.match(
     lines[3],
-    /https:\/\/stream.example.com\/media\?/
+    /https:\/\/stream.example.com\/media\/file\?/
   );
 });
 
-check('Unapproved media hosts rejected', function () {
+check('Local and numeric addresses rejected', function () {
   const unsafe = rewritePlaylist(
-    '#EXTM3U\nhttps://unapproved.example/chunk.ts\n',
+    '#EXTM3U\nhttps://127.0.0.1/chunk.ts\nhttps://localhost/chunk.ts\n',
     origin,
     expires
   );
