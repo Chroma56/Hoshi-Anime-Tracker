@@ -1409,7 +1409,10 @@ function detail(a, wantEp) {
   // A missing entry is normal: embedded playback stays available.
   var streamLookupToken = 0;
   function lookUpHoshiStream(ep, index, selectedLang) {
-    var seriesId = String(a.id || "").replace(/[^A-Za-z0-9_-]/g, "");
+    // The backend finds streams by AniList id ("al123"). Titles from the home lists carry their
+    // own numeric id instead, so use their AniList id whenever one is known.
+    var aniListId = String(a.aniId || (a.raw && (a.raw.ani_id || a.raw.anilist_id)) || "");
+    var seriesId = /^[1-9]\d{0,9}$/.test(aniListId) ? "al" + aniListId : String(a.id || "").replace(/[^A-Za-z0-9_-]/g, "");
     var episodeNumber = String(epNum(ep, index));
     if (!seriesId || !/^\d+(?:\.\d+)?$/.test(episodeNumber)) return Promise.resolve(null);
     var q = "?series=" + encodeURIComponent(seriesId) + "&episode=" + encodeURIComponent(episodeNumber) + "&lang=" + encodeURIComponent(selectedLang);
