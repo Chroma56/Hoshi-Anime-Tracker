@@ -90,6 +90,27 @@ function allowedHosts() {
   );
 }
 
+// A MEDIA_HOSTS entry is an exact host name, or
+// "*.example.com" for every subdomain of example.com.
+function hostListed(host) {
+  const hosts = allowedHosts();
+
+  if (hosts.has(host)) return true;
+
+  for (const entry of hosts) {
+    if (
+      entry.startsWith('*.') &&
+      entry.length > 3 &&
+      host.length > entry.length - 1 &&
+      host.endsWith(entry.slice(1))
+    ) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 function approvedMedia(value) {
   if (typeof value !== 'string') return null;
 
@@ -103,7 +124,7 @@ function approvedMedia(value) {
       url.password ||
       url.hash ||
       net.isIP(url.hostname) ||
-      !allowedHosts().has(url.hostname.toLowerCase())
+      !hostListed(url.hostname.toLowerCase())
     ) {
       return null;
     }
