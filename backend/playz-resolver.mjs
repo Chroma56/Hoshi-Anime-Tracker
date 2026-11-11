@@ -50,7 +50,10 @@ async function getText(url, headers = {}, limit = MAX_JSON) {
   const first = records[0];
   return new Promise((resolve, reject) => {
     const request = https.request(target, {method:'GET', timeout:12000,
-      lookup:(_host,_options,callback)=>callback(null,first.address,first.family),
+      lookup:(_host, options, callback)=> {
+        if (options?.all) callback(null, [{ address:first.address, family:first.family }]);
+        else callback(null, first.address, first.family);
+      },
       headers:{'Accept':'*/*',...headers}}, response => {
       if (response.statusCode !== 200) { response.resume(); reject(Error('HTTP_'+response.statusCode)); return; }
       let total=0; const parts=[];
