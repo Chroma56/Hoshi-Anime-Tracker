@@ -1,18 +1,19 @@
 
 /**
- * Hoshi V4 — Playz-style resolver (ES module)
+ * HOSHI V4 — Complete Diagnostic Patch
  *
- * Only use this with provider permission and CDN hosts you are
- * authorized to access. Does not decrypt or guess stream URLs.
+ * Includes:
+ * - Source response normalization
+ * - HLS playlist validation
+ * - Subtitle and track analysis
+ * - ENC/server metadata diagnostics
+ * - Approved CDN checks
+ * - DNS safety checks
+ * - Optional browser fallback
+ * - Optional authorized folder discovery
+ * - Successful stream caching
  *
- * Required env:
- *   HOSHI_PLAYZ_ENABLED=true
- *   MEGAPLAY_SOURCE_PERMISSION=true
- *   MEDIA_HOSTS=licensed-cdn.example.com
- *
- * Optional (disabled by default):
- *   HOSHI_PLAYZ_BROWSER=false
- *   MEGAPLAY_FOLDER_DISCOVERY=false
+ * Only use with explicitly authorized providers and media hosts.
  */
 
 import https from 'node:https';
@@ -20,44 +21,17 @@ import dns from 'node:dns/promises';
 import net from 'node:net';
 
 const EMBED_ORIGIN = 'https://megaplay.buzz';
+
 const MAX_HTML = 512 * 1024;
 const MAX_JSON = 256 * 1024;
 const MAX_PLAYLIST = 1024 * 1024;
+
 const CACHE_TTL = 5 * 60 * 1000;
 const cache = new Map();
 
-const blockedV4 = new net.BlockList();
-for (const [address, prefix] of [
-  ['0.0.0.0', 8],
-  ['10.0.0.0', 8],
-  ['100.64.0.0', 10],
-  ['127.0.0.0', 8],
-  ['169.254.0.0', 16],
-  ['172.16.0.0', 12],
-  ['192.0.0.0', 24],
-  ['192.0.2.0', 24],
-  ['192.88.99.0', 24],
-  ['192.168.0.0', 16],
-  ['198.18.0.0', 15],
-  ['198.51.100.0', 24],
-  ['203.0.113.0', 24],
-  ['224.0.0.0', 4],
-  ['240.0.0.0', 4],
-]) {
-  blockedV4.addSubnet(address, prefix, 'ipv4');
-}
-
-const globalV6 = new net.BlockList();
-globalV6.addSubnet('2000::', 3, 'ipv6');
-
-const blockedV6 = new net.BlockList();
-for (const [address, prefix] of [
-  ['2001::', 23],
-  ['2001:db8::', 32],
-  ['2002::', 16],
-]) {
-  blockedV6.addSubnet(address, prefix, 'ipv6');
-}
+// ============================================
+// CONFIGURATION
+// ============================================
 
 function enabled(name) {
   return process.env[name] === 'true';
@@ -74,8 +48,10 @@ function allowedHosts() {
 
 function approvedMedia(value) {
   if (typeof value !== 'string') return null;
+
   try {
     const url = new URL(value.trim());
+
     if (
       url.protocol !== 'https:' ||
       url.port ||
@@ -87,6 +63,7 @@ function approvedMedia(value) {
     ) {
       return null;
     }
+
     return url.href;
   } catch {
     return null;
@@ -96,6 +73,7 @@ function approvedMedia(value) {
 function providerUrl(value) {
   try {
     const url = new URL(value);
+
     if (
       url.origin !== EMBED_ORIGIN ||
       url.username ||
@@ -104,267 +82,732 @@ function providerUrl(value) {
     ) {
       return null;
     }
+
     return url.href;
   } catch {
     return null;
   }
 }
 
-function publicAddress(ip) {
-  const family = net.isIP(ip);
-  if (family === 4) return !blockedV4.check(ip, 'ipv4');
-  if (family === 6) {
-    return globalV6.check(ip, 'ipv6') && !blockedV6.check(ip, 'ipv6');
+// ============================================
+// NETWORK SAFETY
+// ============================================
+
+const blockedIPv4 = new net.BlockList();
+
+for (const [address, prefix] of [
+  ['0.0.0.0', 8],
+  ['10.0.0.0', 8],
+  ['100.64.0.0', 10],
+  ['127.0.0.0', 8],
+  ['169.254.0.0', 16],
+  ['172.16.0.0', 12],
+  ['192.0.0.0', 24],
+  ['192.0.2.0', 24],
+  ['192.168.0.0', 16],
+  ['198.18.0.0', 15],
+  ['198.51.100.0', 24],
+  ['203.0.113.0', 24],
+  ['224.0.0.0', 4],
+  ['240.0.0.0', 4]
+]) {
+  blockedIPv4.addSubnet(address, prefix, 'ipv4');
+}
+
+const globalIPv6 = new net.BlockList();
+globalIPv6.addSubnet('2000::', 3, 'ipv6');
+
+const blockedIPv6 = new net.BlockList();
+
+for (const [address, prefix] of [
+  ['2001::', 23],
+  ['2001:db8::', 32],
+  ['2002::', 16]
+]) {
+  blockedIPv6.addSubnet(address, prefix, 'ipv6');
+}
+
+function publicAddress(address) {
+  const family = net.isIP(address);
+
+  if (family === 4) {
+    return !blockedIPv4.check(address, 'ipv4');
   }
+
+  if (family === 6) {
+    return (
+      globalIPv6.check(address, 'ipv6') &&
+      !blockedIPv6.check(address, 'ipv6')
+    );
+  }
+
   return false;
 }
 
-async function getText(value, headers = {}, maxBytes = MAX_JSON) {
-  const safeUrl = providerUrl(value) ?? approvedMedia(value);
-  if (!safeUrl) throw new Error('HOST_NOT_APPROVED');
+// ============================================
+// HTTPS FETCH
+// ============================================
 
-  const url = new URL(safeUrl);
-  const addresses = await dns.lookup(url.hostname, { all: true });
-  if (!addresses.length || addresses.some(({ address }) => !publicAddress(address))) {
+async function getText(
+  value,
+  headers = {},
+  limit = MAX_JSON
+) {
+  const safeUrl =
+    providerUrl(value) ??
+    approvedMedia(value);
+
+  if (!safeUrl) {
+    throw new Error('HOST_NOT_APPROVED');
+  }
+
+  const target = new URL(safeUrl);
+
+  const addresses = await dns.lookup(
+    target.hostname,
+    { all: true }
+  );
+
+  if (
+    !addresses.length ||
+    addresses.some(
+      entry => !publicAddress(entry.address)
+    )
+  ) {
     throw new Error('NON_PUBLIC_DESTINATION');
   }
 
-  // Pin the resolved IP so the connection doesn't perform a second DNS lookup.
-  const pinned = addresses[0];
+  const selected = addresses[0];
+
   return new Promise((resolve, reject) => {
     const request = https.request(
-      url,
+      target,
       {
         method: 'GET',
         timeout: 12000,
-        headers: { Accept: '*/*', ...headers },
-        lookup: (_hostname, options, callback) => {
-          if (options?.all) {
-            callback(null, [{ address: pinned.address, family: pinned.family }]);
-          } else {
-            callback(null, pinned.address, pinned.family);
-          }
+        headers: {
+          Accept: '*/*',
+          ...headers
         },
+        lookup: (_host, options, callback) => {
+          if (options?.all) {
+            callback(null, [{
+              address: selected.address,
+              family: selected.family
+            }]);
+          } else {
+            callback(
+              null,
+              selected.address,
+              selected.family
+            );
+          }
+        }
       },
       response => {
         if (response.statusCode !== 200) {
           const status = response.statusCode;
           response.resume();
-          reject(new Error(`HTTP_${status}`));
+
+          reject(
+            new Error(`HTTP_${status}`)
+          );
+
           return;
         }
 
-        const parts = [];
-        let received = 0;
+        const chunks = [];
+        let size = 0;
+
         response.on('data', chunk => {
-          received += chunk.length;
-          if (received > maxBytes) {
-            request.destroy(new Error('RESPONSE_TOO_LARGE'));
+          size += chunk.length;
+
+          if (size > limit) {
+            request.destroy(
+              new Error('RESPONSE_TOO_LARGE')
+            );
             return;
           }
-          parts.push(chunk);
+
+          chunks.push(chunk);
         });
-        response.on('end', () => resolve(Buffer.concat(parts).toString('utf8')));
+
+        response.on('end', () => {
+          resolve(
+            Buffer.concat(chunks).toString('utf8')
+          );
+        });
+
         response.on('error', reject);
       }
     );
-    request.on('timeout', () => request.destroy(new Error('TIMEOUT')));
+
+    request.on('timeout', () => {
+      request.destroy(new Error('TIMEOUT'));
+    });
+
     request.on('error', reject);
     request.end();
   });
 }
 
+// ============================================
+// PLAYER ID
+// ============================================
+
 function playerId(html) {
   const playerTag =
-    /<[^>]*\bid=["']megaplay-player["'][^>]*>/i.exec(html)?.[0];
+    /<[^>]*\bid=["']megaplay-player["'][^>]*>/i
+      .exec(html)?.[0];
 
   const id =
-    playerTag?.match(/\bdata-id=["'](\d+)["']/i)?.[1] ??
-    /<[^>]*\bdata-id=["'](\d+)["'][^>]*>/i.exec(html)?.[1] ??
-    /<title>\s*File\s+(\d+)/i.exec(html)?.[1];
+    playerTag?.match(
+      /\bdata-id=["'](\d+)["']/i
+    )?.[1] ??
+    /<[^>]*\bdata-id=["'](\d+)["'][^>]*>/i
+      .exec(html)?.[1] ??
+    /<title>\s*File\s+(\d+)/i
+      .exec(html)?.[1];
 
-  return id && /^\d{1,15}$/.test(id) ? id : null;
+  return id && /^\d{1,15}$/.test(id)
+    ? id
+    : null;
 }
 
-// Follow ordinary API response wrappers without assuming "enc" is a source.
+// ============================================
+// PAYLOAD NORMALIZATION
+// ============================================
+
 function payloadLayers(root) {
   const layers = [];
   let current = root;
-  for (let i = 0; i < 4; i++) {
-    if (!current || typeof current !== 'object') break;
+
+  for (let depth = 0; depth < 4; depth++) {
+    if (
+      !current ||
+      typeof current !== 'object'
+    ) {
+      break;
+    }
+
     layers.push(current);
-    const next = current.data ?? current.result ?? current.payload;
-    if (!next || typeof next !== 'object' || next === current) break;
+
+    const next =
+      current.data ??
+      current.result ??
+      current.payload;
+
+    if (
+      !next ||
+      typeof next !== 'object' ||
+      next === current
+    ) {
+      break;
+    }
+
     current = next;
   }
+
   return layers;
 }
 
-function trackList(root) {
-  const tracks = payloadLayers(root).flatMap(layer => [
-    ...(Array.isArray(layer.tracks) ? layer.tracks : []),
-    ...(Array.isArray(layer.subtitles) ? layer.subtitles : []),
-  ]);
-  const seen = new Set();
-  const result = [];
+function typeOf(value) {
+  if (Array.isArray(value)) return 'array';
+  if (value === null) return 'null';
 
-  for (const track of tracks.slice(0, 30)) {
-    const url = approvedMedia(track?.file ?? track?.url ?? track?.src);
-    if (!url || !/\.(vtt|srt)$/i.test(new URL(url).pathname)) continue;
-    if (seen.has(url)) continue;
-    seen.add(url);
-    result.push({
-      url,
-      lang: String(track?.lang ?? track?.language ?? 'en').slice(0, 16),
-      label: String(track?.label ?? 'Subtitles').slice(0, 80),
+  return typeof value;
+}
+
+function keysOf(value) {
+  if (
+    !value ||
+    typeof value !== 'object'
+  ) {
+    return [];
+  }
+
+  return Object.keys(value).slice(0, 20);
+}
+
+// ============================================
+// TRACK INSPECTION
+// ============================================
+
+function allTracks(root) {
+  return payloadLayers(root).flatMap(layer => [
+    ...(Array.isArray(layer.tracks)
+      ? layer.tracks
+      : []),
+
+    ...(Array.isArray(layer.subtitles)
+      ? layer.subtitles
+      : [])
+  ]);
+}
+
+function inspectTrack(track) {
+  const file =
+    track?.file ??
+    track?.url ??
+    track?.src;
+
+  if (
+    typeof file !== 'string' ||
+    !file.trim()
+  ) {
+    return {
+      reason: 'missingFile',
+      extension: 'none',
+      url: null
+    };
+  }
+
+  let parsed;
+
+  try {
+    parsed = new URL(file);
+  } catch {
+    return {
+      reason: 'relativeOrInvalid',
+      extension: 'unknown',
+      url: null
+    };
+  }
+
+  const extension =
+    parsed.pathname.match(
+      /\.([a-z0-9]+)$/i
+    )?.[1]?.toLowerCase() ?? 'none';
+
+  if (parsed.protocol !== 'https:') {
+    return {
+      reason: 'notHttps',
+      extension,
+      url: null
+    };
+  }
+
+  const approved = approvedMedia(file);
+
+  if (!approved) {
+    return {
+      reason: 'unapprovedHost',
+      extension,
+      url: null
+    };
+  }
+
+  if (
+    extension !== 'vtt' &&
+    extension !== 'srt'
+  ) {
+    return {
+      reason: 'unsupportedExtension',
+      extension,
+      url: null
+    };
+  }
+
+  return {
+    reason: 'accepted',
+    extension,
+    url: approved
+  };
+}
+
+// ============================================
+// TRACK DIAGNOSTICS
+// ============================================
+
+function logTrackAnalysis(root) {
+  const tracks = allTracks(root);
+  const first = tracks[0];
+
+  const reasons = {
+    accepted: 0,
+    missingFile: 0,
+    relativeOrInvalid: 0,
+    notHttps: 0,
+    unapprovedHost: 0,
+    unsupportedExtension: 0
+  };
+
+  for (const track of tracks) {
+    const inspection = inspectTrack(track);
+
+    if (inspection.reason in reasons) {
+      reasons[inspection.reason]++;
+    }
+  }
+
+  const firstInspection = inspectTrack(first);
+
+  const firstFile =
+    first?.file ??
+    first?.url ??
+    first?.src;
+
+  const kinds = [
+    ...new Set(
+      tracks.map(track => {
+        const kind = String(
+          track?.kind ?? 'unknown'
+        );
+
+        return /^[\w -]{1,24}$/.test(kind)
+          ? kind
+          : 'unknown';
+      })
+    )
+  ].slice(0, 10);
+
+  const diagnostic = {
+    totalTracks: tracks.length,
+
+    kinds,
+
+    firstTrack: {
+      kind:
+        typeof first?.kind === 'string' &&
+        /^[\w -]{1,24}$/.test(first.kind)
+          ? first.kind
+          : 'unknown',
+
+      hasFile:
+        typeof firstFile === 'string',
+
+      fileIsAbsoluteHttps:
+        typeof firstFile === 'string' &&
+        firstFile.startsWith('https://'),
+
+      fileExtension:
+        firstInspection.extension,
+
+      validationResult:
+        firstInspection.reason
+    },
+
+    validationSummary: reasons,
+
+    approvedHostCount:
+      allowedHosts().size
+  };
+
+  // Never log the raw track URLs or tokens.
+  console.info(
+    'HOSHI TRACK ANALYSIS:',
+    JSON.stringify(diagnostic)
+  );
+}
+
+// ============================================
+// SUBTITLE EXTRACTION
+// ============================================
+
+function trackList(root) {
+  const seen = new Set();
+  const subtitles = [];
+
+  for (const track of allTracks(root).slice(0, 80)) {
+    const inspection = inspectTrack(track);
+
+    if (
+      inspection.reason !== 'accepted' ||
+      !inspection.url
+    ) {
+      continue;
+    }
+
+    if (seen.has(inspection.url)) {
+      continue;
+    }
+
+    seen.add(inspection.url);
+
+    subtitles.push({
+      url: inspection.url,
+
+      lang: String(
+        track.lang ??
+        track.language ??
+        'en'
+      ).slice(0, 16),
+
+      label: String(
+        track.label ??
+        'Subtitles'
+      ).slice(0, 80)
     });
   }
-  return result;
+
+  return subtitles;
 }
+
+// ============================================
+// SOURCE CANDIDATE EXTRACTION
+// ============================================
 
 function clearCandidates(root) {
   const found = new Set();
 
   function add(value, depth = 0) {
-    if (value == null || depth > 5) return;
+    if (
+      value === undefined ||
+      value === null ||
+      depth > 5
+    ) {
+      return;
+    }
 
     if (Array.isArray(value)) {
-      value.forEach(item => add(item, depth + 1));
+      for (const entry of value) {
+        add(entry, depth + 1);
+      }
       return;
     }
 
     if (typeof value === 'object') {
       for (const key of [
-        'file', 'url', 'src', 'master', 'playlist',
-        'source', 'sources', 'streams', 'hls', 'playback',
+        'file',
+        'url',
+        'src',
+        'master',
+        'playlist',
+        'source',
+        'sources',
+        'streams',
+        'hls',
+        'playback'
       ]) {
         add(value[key], depth + 1);
       }
+
       return;
     }
 
-    if (typeof value !== 'string') return;
+    if (typeof value !== 'string') {
+      return;
+    }
+
     const input = value.trim();
 
-    // Some APIs return a JSON-encoded source array.
-    if (input.startsWith('[') || input.startsWith('{')) {
+    if (
+      input.startsWith('[') ||
+      input.startsWith('{')
+    ) {
       try {
-        add(JSON.parse(input), depth + 1);
+        add(
+          JSON.parse(input),
+          depth + 1
+        );
       } catch {
-        // Ignore invalid JSON; do not attempt decoding unknown "enc" values.
+        // Ignore invalid serialized source data.
       }
+
       return;
     }
 
     const url = approvedMedia(input);
-    if (url && /\.m3u8$/i.test(new URL(url).pathname)) found.add(url);
+
+    if (
+      url &&
+      /\.m3u8$/i.test(
+        new URL(url).pathname
+      )
+    ) {
+      found.add(url);
+    }
   }
 
   for (const layer of payloadLayers(root)) {
     for (const key of [
-      'sources', 'source', 'streams', 'file',
-      'url', 'master', 'playback', 'hls',
+      'sources',
+      'source',
+      'streams',
+      'file',
+      'url',
+      'master',
+      'playback',
+      'hls'
     ]) {
       add(layer[key]);
     }
   }
 
-  // Use only when the provider explicitly authorizes this directory layout.
+  // Only enable when explicitly authorized.
   if (enabled('MEGAPLAY_FOLDER_DISCOVERY')) {
     for (const track of trackList(root)) {
       const url = new URL(track.url);
-      const match = /^(.+?)\/(?:subtitles|sprites|thumbnails)\/.+$/i.exec(url.pathname);
+
+      const match =
+        /^(.+?)\/(?:subtitles|sprites|thumbnails)\/.+$/i
+          .exec(url.pathname);
+
       if (!match) continue;
-      url.pathname = `${match[1]}/master.m3u8`;
+
+      url.pathname =
+        `${match[1]}/master.m3u8`;
+
       url.search = '';
+
       const candidate = approvedMedia(url.href);
-      if (candidate) found.add(candidate);
+
+      if (candidate) {
+        found.add(candidate);
+      }
     }
   }
 
   return [...found].slice(0, 6);
 }
 
-function typeOf(value) {
-  if (Array.isArray(value)) return 'array';
-  if (value === null) return 'null';
-  return typeof value;
-}
-
-function keysOf(value) {
-  return value && typeof value === 'object'
-    ? Object.keys(value).slice(0, 20)
-    : [];
-}
+// ============================================
+// PLAYLIST DIAGNOSTICS
+// ============================================
 
 function logDiagnostic(root, candidates) {
   const layers = payloadLayers(root);
   const payload = layers.at(-1) ?? {};
-  const tracks = Array.isArray(payload.tracks) ? payload.tracks : [];
-  const firstTrack = tracks[0];
 
-  // Structural information only: no raw URLs, secrets, or "enc" contents.
-  console.info('HOSHI PLAYLIST DIAGNOSTIC:', JSON.stringify({
+  const tracks = allTracks(root);
+
+  const diagnostic = {
     metadataReceived: true,
-    rootKeys: keysOf(root),
-    payloadKeys: keysOf(payload),
-    sourcesType: typeOf(payload.sources),
-    hasFileField: typeof payload.file === 'string',
-    rawTrackCount: tracks.length,
-    subtitleTrackCount: trackList(root).length,
-    firstTrackKeys: keysOf(firstTrack),
-    approvedPlaylistCandidates: candidates.length,
-    approvedHostCount: allowedHosts().size,
-    encType: typeOf(payload.enc),
-    encLength: typeof payload.enc === 'string' ? payload.enc.length : null,
-    encKeys: keysOf(payload.enc),
-    serverType: typeOf(payload.server),
-    serverKeys: keysOf(payload.server),
-    tType: typeOf(payload.t),
-    browserFallbackEnabled: enabled('HOSHI_PLAYZ_BROWSER'),
-    folderDiscoveryEnabled: enabled('MEGAPLAY_FOLDER_DISCOVERY'),
-  }));
+
+    rootKeys:
+      keysOf(root),
+
+    payloadKeys:
+      keysOf(payload),
+
+    sourcesType:
+      typeOf(payload.sources),
+
+    hasFileField:
+      typeof payload.file === 'string',
+
+    rawTrackCount:
+      tracks.length,
+
+    subtitleTrackCount:
+      trackList(root).length,
+
+    firstTrackKeys:
+      keysOf(tracks[0]),
+
+    approvedPlaylistCandidates:
+      candidates.length,
+
+    approvedHostCount:
+      allowedHosts().size,
+
+    encType:
+      typeOf(payload.enc),
+
+    encLength:
+      typeof payload.enc === 'string'
+        ? payload.enc.length
+        : null,
+
+    encKeys:
+      keysOf(payload.enc),
+
+    serverType:
+      typeOf(payload.server),
+
+    serverKeys:
+      keysOf(payload.server),
+
+    tType:
+      typeOf(payload.t),
+
+    browserFallbackEnabled:
+      enabled('HOSHI_PLAYZ_BROWSER'),
+
+    folderDiscoveryEnabled:
+      enabled('MEGAPLAY_FOLDER_DISCOVERY')
+  };
+
+  console.info(
+    'HOSHI PLAYLIST DIAGNOSTIC:',
+    JSON.stringify(diagnostic)
+  );
+
+  logTrackAnalysis(root);
 }
 
-async function browserCandidate(embedUrl) {
-  if (!enabled('HOSHI_PLAYZ_BROWSER')) return null;
+// ============================================
+// OPTIONAL BROWSER FALLBACK
+// ============================================
 
-  let chromium;
-  try {
-    ({ chromium } = await import('playwright'));
-  } catch {
-    console.warn('Hoshi V4: PLAYWRIGHT_NOT_INSTALLED');
+async function browserCandidate(embedUrl) {
+  if (!enabled('HOSHI_PLAYZ_BROWSER')) {
     return null;
   }
 
-  const browser = await chromium.launch({ headless: true });
+  let chromium;
+
   try {
-    const context = await browser.newContext({ serviceWorkers: 'block' });
+    ({ chromium } = await import('playwright'));
+  } catch {
+    console.warn(
+      'Hoshi V4: PLAYWRIGHT_NOT_INSTALLED'
+    );
+
+    return null;
+  }
+
+  const browser = await chromium.launch({
+    headless: true
+  });
+
+  try {
+    const context = await browser.newContext({
+      serviceWorkers: 'block'
+    });
+
     try {
       const page = await context.newPage();
       const found = new Set();
+
       page.on('request', request => {
         const url = request.url();
-        if (/\.m3u8(?:\?|$)/i.test(url) && approvedMedia(url)) {
+
+        if (
+          /\.m3u8(?:\?|$)/i.test(url) &&
+          approvedMedia(url)
+        ) {
           found.add(url);
         }
       });
 
       await page.goto(embedUrl, {
         waitUntil: 'domcontentloaded',
-        timeout: 12000,
+        timeout: 12000
       });
-      if (!found.size) await page.waitForTimeout(5000);
+
+      if (!found.size) {
+        await page.waitForTimeout(5000);
+      }
 
       for (const url of found) {
         const text = await getText(
           url,
-          { Referer: `${EMBED_ORIGIN}/` },
+          {
+            Referer: `${EMBED_ORIGIN}/`
+          },
           MAX_PLAYLIST
         ).catch(() => null);
 
-        if (text?.trimStart().startsWith('#EXTM3U')) return url;
+        if (
+          text?.trimStart().startsWith(
+            '#EXTM3U'
+          )
+        ) {
+          return url;
+        }
       }
+
       return null;
     } finally {
       await context.close();
@@ -374,7 +817,15 @@ async function browserCandidate(embedUrl) {
   }
 }
 
-export async function resolvePlayzStyle(series, episode, lang) {
+// ============================================
+// MAIN HOSHI V4 RESOLVER
+// ============================================
+
+export async function resolvePlayzStyle(
+  series,
+  episode,
+  lang
+) {
   if (
     !enabled('HOSHI_PLAYZ_ENABLED') ||
     !enabled('MEGAPLAY_SOURCE_PERMISSION')
@@ -382,122 +833,267 @@ export async function resolvePlayzStyle(series, episode, lang) {
     return null;
   }
 
-  const match = /^al([1-9]\d{0,9})$/.exec(String(series));
+  const match =
+    /^al([1-9]\d{0,9})$/.exec(
+      String(series)
+    );
+
   if (
     !match ||
-    !/^\d{1,5}$/.test(String(episode)) ||
+    !/^\d{1,5}$/.test(
+      String(episode)
+    ) ||
     !['sub', 'dub'].includes(lang)
   ) {
-    console.warn('Hoshi V4: INVALID_EPISODE_ARGUMENTS');
+    console.warn(
+      'Hoshi V4: INVALID_EPISODE_ARGUMENTS'
+    );
+
     return null;
   }
 
-  const key = `${series}:${episode}:${lang}`;
+  // ------------------------------------------
+  // CACHE CHECK
+  // ------------------------------------------
+
+  const key =
+    `${series}:${episode}:${lang}`;
+
   const cached = cache.get(key);
-  if (cached && cached.until > Date.now()) return cached.value;
-  if (cached) cache.delete(key);
+
+  if (
+    cached &&
+    cached.until > Date.now()
+  ) {
+    return cached.value;
+  }
+
+  if (cached) {
+    cache.delete(key);
+  }
+
+  // ------------------------------------------
+  // EMBED METADATA
+  // ------------------------------------------
 
   const embedUrl =
-    `${EMBED_ORIGIN}/stream/ani/${match[1]}/${episode}/${lang}`;
+    `${EMBED_ORIGIN}/stream/ani/` +
+    `${match[1]}/${episode}/${lang}`;
 
   try {
     const html = await getText(
       embedUrl,
-      { Referer: `${EMBED_ORIGIN}/` },
+      {
+        Referer: `${EMBED_ORIGIN}/`
+      },
       MAX_HTML
     );
-    const id = playerId(html);
-    if (!id) throw new Error('PLAYER_ID_MISSING');
 
-    const sourceUrl = new URL('/stream/getSources', EMBED_ORIGIN);
-    sourceUrl.searchParams.set('id', id);
+    const id = playerId(html);
+
+    if (!id) {
+      throw new Error(
+        'PLAYER_ID_MISSING'
+      );
+    }
+
+    // ----------------------------------------
+    // SOURCES API
+    // ----------------------------------------
+
+    const sourceUrl = new URL(
+      '/stream/getSources',
+      EMBED_ORIGIN
+    );
+
+    sourceUrl.searchParams.set(
+      'id',
+      id
+    );
 
     let payload = null;
     let candidates = [];
 
     try {
-      const response = await getText(
+      const responseText = await getText(
         sourceUrl.href,
         {
           Referer: embedUrl,
-          'X-Requested-With': 'XMLHttpRequest',
-          Accept: 'application/json',
+
+          'X-Requested-With':
+            'XMLHttpRequest',
+
+          Accept:
+            'application/json'
         },
         MAX_JSON
       );
 
-      payload = JSON.parse(response);
-      if (!payload || typeof payload !== 'object') {
-        throw new Error('INVALID_METADATA');
+      payload = JSON.parse(
+        responseText
+      );
+
+      if (
+        !payload ||
+        typeof payload !== 'object'
+      ) {
+        throw new Error(
+          'INVALID_METADATA'
+        );
       }
 
-      candidates = clearCandidates(payload);
-      logDiagnostic(payload, candidates);
+      // Extract supported source formats.
+      candidates = clearCandidates(
+        payload
+      );
+
+      // Log both playlist and track diagnostics.
+      logDiagnostic(
+        payload,
+        candidates
+      );
+
     } catch (error) {
       console.warn(
         'Hoshi V4: SOURCES_METADATA_UNAVAILABLE:',
-        String(error?.message ?? error).slice(0, 120)
+        String(
+          error?.message ?? error
+        ).slice(0, 120)
       );
     }
 
+    // ----------------------------------------
+    // SUBTITLES
+    // ----------------------------------------
+
+    const subtitles = trackList(
+      payload
+    );
+
     let result = null;
-    const subtitles = trackList(payload);
+
+    // ----------------------------------------
+    // VALIDATE HLS PLAYLISTS
+    // ----------------------------------------
 
     for (const candidate of candidates) {
       try {
-        const text = await getText(
+        const playlist = await getText(
           candidate,
-          { Referer: `${EMBED_ORIGIN}/`, Origin: EMBED_ORIGIN },
+          {
+            Referer:
+              `${EMBED_ORIGIN}/`,
+
+            Origin:
+              EMBED_ORIGIN
+          },
           MAX_PLAYLIST
         );
 
-        if (text.trimStart().startsWith('#EXTM3U')) {
+        if (
+          playlist.trimStart().startsWith(
+            '#EXTM3U'
+          )
+        ) {
           result = {
             type: 'hls',
             url: candidate,
-            referer: `${EMBED_ORIGIN}/`,
-            subtitles,
+
+            referer:
+              `${EMBED_ORIGIN}/`,
+
+            subtitles
           };
+
           break;
         }
 
-        console.warn('Hoshi V4: CANDIDATE_NOT_HLS');
+        console.warn(
+          'Hoshi V4: CANDIDATE_NOT_HLS'
+        );
+
       } catch (error) {
         console.warn(
           'Hoshi V4: PLAYLIST_FETCH_FAILED:',
-          String(error?.message ?? error).slice(0, 120)
+          String(
+            error?.message ?? error
+          ).slice(0, 120)
         );
       }
     }
 
+    // ----------------------------------------
+    // OPTIONAL BROWSER FALLBACK
+    // ----------------------------------------
+
     if (!result) {
-      const url = await browserCandidate(embedUrl);
+      const url = await browserCandidate(
+        embedUrl
+      );
+
       if (url) {
         result = {
           type: 'hls',
           url,
-          referer: `${EMBED_ORIGIN}/`,
-          subtitles,
+
+          referer:
+            `${EMBED_ORIGIN}/`,
+
+          subtitles
         };
       }
     }
 
-    if (!result) throw new Error('PLAYLIST_NOT_FOUND');
+    // ----------------------------------------
+    // MISSING PLAYLIST
+    // ----------------------------------------
 
-    if (cache.size >= 100) cache.delete(cache.keys().next().value);
-    cache.set(key, { value: result, until: Date.now() + CACHE_TTL });
+    if (!result) {
+      console.warn(
+        'Hoshi V4: No approved HLS playlist returned.'
+      );
 
-    console.info('Hoshi V4: STREAM_RESOLVED', {
-      type: result.type,
-      subtitles: result.subtitles.length,
+      throw new Error(
+        'PLAYLIST_NOT_FOUND'
+      );
+    }
+
+    // ----------------------------------------
+    // CACHE SUCCESS
+    // ----------------------------------------
+
+    if (cache.size >= 100) {
+      cache.delete(
+        cache.keys().next().value
+      );
+    }
+
+    cache.set(key, {
+      value: result,
+
+      until:
+        Date.now() + CACHE_TTL
     });
 
+    console.info(
+      'Hoshi V4: STREAM_RESOLVED',
+      {
+        type: result.type,
+        subtitles:
+          result.subtitles.length
+      }
+    );
+
     return result;
+
   } catch (error) {
     console.warn(
       'Hoshi Playz-style resolver:',
-      String(error?.message ?? error).slice(0, 120)
+      String(
+        error?.message ?? error
+      ).slice(0, 120)
     );
+
     return null;
   }
 }
