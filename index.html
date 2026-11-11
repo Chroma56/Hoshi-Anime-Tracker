@@ -213,36 +213,63 @@ h2{font:800 24px "Bricolage Grotesque",sans-serif;margin:36px 0 2px}
 .cwc:hover .cwx,.cwx:focus-visible{opacity:1}
 @media(hover:none){.cwx{opacity:.9}}
 
-.hero{position:relative;margin:0 calc(-1*var(--mpad)) 32px;overflow:hidden;background:var(--panel)}
+/* Home V2: edge-to-edge hero carousel */
+html{overflow-x:clip}
+.hero{position:relative;width:100vw;margin:-18px calc(50% - 50vw) 30px;height:clamp(460px,80vh,860px);overflow:hidden;background:var(--panel);--hpad:var(--mpad)}
 .hero[hidden]{display:none}
-.hslide{position:relative;display:none;align-items:flex-end;min-height:clamp(380px,52vw,580px)}
-.hslide.on{display:flex}
+.hslide{position:absolute;inset:0;display:flex;align-items:flex-end;opacity:0;visibility:hidden;transition:opacity .7s ease,visibility 0s linear .7s}
+.hslide.on{opacity:1;visibility:visible;transition:opacity .7s ease}
 /* No wide art yet: soft fill from the cover, with the cover itself shown sharp at its real size on the right */
 .hbg{position:absolute;inset:-40px;background-size:cover;background-position:center 18%;background-image:var(--hc,none);filter:blur(28px) brightness(.55) saturate(1.15)}
-.hart{position:absolute;top:0;right:0;height:100%;width:auto;max-width:72%;object-fit:cover;object-position:center 18%;-webkit-mask-image:linear-gradient(to right,transparent 0,#000 38%);mask-image:linear-gradient(to right,transparent 0,#000 38%)}
+.hart{position:absolute;top:0;right:0;height:100%;width:auto;max-width:62%;object-fit:cover;object-position:center 18%;-webkit-mask-image:linear-gradient(to right,transparent 0,#000 38%);mask-image:linear-gradient(to right,transparent 0,#000 38%)}
 .hart:not([src]){display:none}
 /* Wide art found (AniList banner or Kitsu cover): fill edge to edge, sharp */
-.hslide.wide .hbg{inset:0;filter:none;background-image:var(--hb);background-position:center 30%}
+.hslide.wide .hbg{inset:0;filter:none;background-image:var(--hb);background-position:center 24%}
 .hslide.wide .hart{display:none}
-.hshade{position:absolute;inset:0;pointer-events:none;background:linear-gradient(to top,var(--bg) 0%,rgba(11,11,12,.18) 44%,rgba(11,11,12,0) 72%),linear-gradient(to right,rgba(11,11,12,.94) 0%,rgba(11,11,12,.5) 36%,rgba(11,11,12,.05) 65%)}
-.hcontent{position:relative;z-index:2;padding:44px var(--mpad) 58px;max-width:620px}
-.hkicker{display:inline-flex;align-items:center;gap:6px;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);border-radius:999px;padding:4px 12px;font-size:12px;font-weight:700;letter-spacing:.03em;margin-bottom:14px}
-.htitle{font:800 clamp(26px,4.4vw,50px)/1.05 "Bricolage Grotesque",sans-serif;margin:0 0 10px;text-shadow:0 2px 20px rgba(0,0,0,.35)}
-.hmeta{display:flex;flex-wrap:wrap;gap:8px;align-items:center;color:#d8d8dc;font-size:13px;margin:0 0 12px}
-.hmeta b{color:#fff;font-weight:700}
-.hgen{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 16px}
-.hgen span{background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.16);border-radius:6px;padding:3px 10px;font-size:12px}
-.hdesc{color:#d8d8dc;margin:0 0 22px;max-width:56ch;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;font-size:14px}
-.hbtns{display:flex;gap:10px;flex-wrap:wrap}
-.hbtn{display:inline-flex;align-items:center;gap:8px;border-radius:10px;padding:12px 22px;font:inherit;font-weight:700;cursor:pointer;border:1px solid rgba(255,255,255,.22);background:rgba(255,255,255,.08);color:#fff}
-.hbtn.pri{background:#fff;color:#0b0b0c;border-color:#fff}
-.hbtn.pri:hover{opacity:.88}
-.hbtn:not(.pri):hover{background:rgba(255,255,255,.18)}
-.hbtn svg{width:15px;height:15px}
-.hdots{position:absolute;right:var(--mpad);bottom:20px;z-index:2;display:flex;gap:6px}
-.hdots button{width:22px;height:4px;border-radius:3px;border:0;padding:0;cursor:pointer;background:rgba(255,255,255,.28)}
-.hdots button.on{background:#fff}
-@media(max-width:760px){.hslide{min-height:clamp(440px,130vw,580px)}.hcontent{padding:26px var(--mpad) 44px;max-width:100%}.hdesc{-webkit-line-clamp:3}.hbtn{padding:10px 16px;font-size:13px}.hdots{right:var(--mpad);bottom:14px}.hbg,.hslide.wide .hbg{inset:0;filter:none;background-image:var(--hc,var(--hb));background-position:center 18%}.hart{display:none}}
+.hshade{position:absolute;inset:0;pointer-events:none;background:linear-gradient(to top,var(--bg) 0%,rgba(11,11,12,.9) 15%,rgba(11,11,12,.34) 46%,rgba(11,11,12,0) 74%),linear-gradient(to right,rgba(11,11,12,.72) 0%,rgba(11,11,12,.3) 38%,rgba(11,11,12,0) 66%),linear-gradient(to bottom,rgba(11,11,12,.42) 0%,rgba(11,11,12,0) 18%)}
+.hcontent{position:relative;z-index:2;box-sizing:border-box;width:100%;max-width:calc(var(--hpad) + 1020px);padding:0 24px 108px var(--hpad)}
+.htitle{font:800 clamp(26px,3.1vw,40px)/1.12 "Bricolage Grotesque",sans-serif;margin:0 0 16px;background:linear-gradient(90deg,#74bfff 0%,#e9f4ff 78%);-webkit-background-clip:text;background-clip:text;color:transparent;-webkit-text-fill-color:transparent;filter:drop-shadow(0 2px 12px rgba(0,0,0,.5));display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;padding-bottom:2px}
+.hmeta{display:flex;flex-wrap:wrap;gap:6px 16px;align-items:center;color:#fff;font-size:15px;font-weight:700;margin:0 0 14px;text-shadow:0 1px 8px rgba(0,0,0,.6)}
+.hstatus{font-weight:800;letter-spacing:.07em;font-size:13.5px;text-transform:uppercase;color:#c9c9d0}
+.hstatus.live{color:#3ddc84}
+.hstatus.soon{color:#ffc857}
+.hmi{display:inline-flex;align-items:center;gap:6px}
+.hmi svg{width:17px;height:17px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.hdesc{color:#e6e6ea;margin:0 0 24px;max-width:1000px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;font-size:14.5px;font-weight:600;line-height:1.45;text-shadow:0 1px 8px rgba(0,0,0,.65)}
+.hbtns{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.hbtn{display:inline-flex;align-items:center;justify-content:center;gap:9px;height:42px;min-width:42px;box-sizing:border-box;border-radius:7px;padding:0 16px;font:inherit;font-weight:700;cursor:pointer;border:1px solid rgba(255,255,255,.2);background:rgba(38,38,42,.74);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);color:#fff}
+.hbtn.pri{background:#f2f2f3;color:#0b0b0c;border-color:#f2f2f3;padding:0 40px 0 36px}
+.hbtn.pri:hover{background:#fff}
+.hbtn:not(.pri):hover{background:rgba(255,255,255,.2)}
+.hbtn svg{width:19px;height:19px;flex:none}
+.hbtn.ico{width:42px;padding:0}
+.hbtn.ico svg{width:21px;height:21px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.hbtn.ico.saved{background:#f2f2f3;color:#0b0b0c;border-color:#f2f2f3}
+.hdots{position:absolute;left:var(--hpad);bottom:66px;z-index:3;display:flex;gap:8px}
+.hdots button{width:24px;height:4px;border-radius:3px;border:0;padding:0;cursor:pointer;background:rgba(255,255,255,.22);transition:width .25s ease,background .25s ease}
+.hdots button:hover{background:rgba(255,255,255,.45)}
+.hdots button.on{width:48px;background:#fff}
+.hnav{position:absolute;right:var(--hpad);bottom:84px;z-index:3;display:flex;gap:6px}
+.hnav button{width:42px;height:42px;border:0;background:transparent;color:#fff;cursor:pointer;border-radius:8px;display:grid;place-items:center}
+.hnav button:hover{background:rgba(255,255,255,.14)}
+.hnav svg{width:24px;height:24px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+@media(max-width:760px){.hero{height:clamp(460px,128vw,620px)}.hcontent{padding:0 var(--mpad) 74px var(--hpad)}.htitle{margin-bottom:12px}.hdesc{-webkit-line-clamp:3;font-size:13.5px;margin-bottom:18px}.hmeta{font-size:13px;gap:5px 12px}.hstatus{font-size:12px}.hbtn.pri{padding:0 26px 0 22px}.hdots{bottom:40px}.hnav{display:none}.hbg,.hslide.wide .hbg{inset:0;filter:none;background-image:var(--hc,var(--hb));background-position:center 18%}.hart{display:none}}
+@media(max-width:640px){.hero{margin-top:-14px}}
+@media(prefers-reduced-motion:reduce){.hslide,.hslide.on,.hdots button{transition:none}}
+/* Home V2: section headings with an accent bar, row arrows up beside the heading */
+#home h2{display:flex;align-items:center;gap:10px;margin-top:40px}
+#home h2::before{content:"";width:5px;height:22px;border-radius:3px;background:var(--text);flex:none}
+#home .sub{margin-left:15px}
+#home .sub+.rowwrap .rarr{top:-58px;margin-top:0;width:32px;height:32px;border-radius:7px;background:#1c1c20;border-color:#2e2e34;box-shadow:none;backdrop-filter:none;-webkit-backdrop-filter:none;opacity:.35;pointer-events:none}
+#home .sub+.rowwrap .rarr svg{width:15px;height:15px}
+#home .sub+.rowwrap .rarr.l{left:auto;right:40px}
+#home .sub+.rowwrap .rarr.r{right:0}
+#home .sub+.rowwrap .rarr.show{opacity:1;pointer-events:auto}
+#home .sub+.rowwrap .rarr:hover{transform:none;background:#f2f2f3;color:#0b0b0c}
+#home .sub+.rowwrap:not(:has(.rarr.show)) .rarr{display:none}
+.card .poster{transition:transform .18s ease}
+.card:hover .poster{transform:translateY(-3px)}
+@media(prefers-reduced-motion:reduce){.card .poster{transition:none}.card:hover .poster{transform:none}}
 
 #manga .row{gap:20px;contain-intrinsic-size:auto 390px}
 #manga .card{width:200px}
@@ -504,6 +531,26 @@ function render() {
 
 var HERO_I = 0, HERO_T = 0;
 function heroLibLabel(a) { return LIB[a.id] ? "\u2713 In library" : "+ My list"; }
+var HERO_ICON = {
+  cal: '<svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>',
+  ep: '<svg viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="13" rx="2"/><path d="M7 11h4M7 15h10"/></svg>',
+  clock: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>'
+};
+function heroMetaItem(icon, text) {
+  var s = mk("span", "hmi");
+  s.innerHTML = HERO_ICON[icon] || "";
+  s.appendChild(document.createTextNode(text));
+  return s;
+}
+// "in 6d 14h", "in 3h 20m", "in 12m"; empty once the episode has aired.
+function heroCountdown(airingAt) {
+  var ms = Number(airingAt) * 1000 - Date.now();
+  if (!(ms > 0)) return "";
+  var mins = Math.floor(ms / 60000), hours = Math.floor(mins / 60), days = Math.floor(hours / 24);
+  if (days) return "in " + days + "d " + (hours % 24) + "h";
+  if (hours) return "in " + hours + "h " + (mins % 60) + "m";
+  return "in " + Math.max(1, mins) + "m";
+}
 function heroSlide(a, i) {
   var s = mk("div", "hslide" + (i === 0 ? " on" : ""));
   var bg = mk("div", "hbg"), shade = mk("div", "hshade"), art = new Image();
@@ -514,7 +561,25 @@ function heroSlide(a, i) {
   // swap an image in only once it has fully downloaded, so the banner never flashes
   function whenLoaded(u, fn) { var t = new Image(); t.referrerPolicy = "no-referrer"; t.onload = function() { fn(u, t); }; t.src = u; }
   if (a.img) setCover(a.img);
+  // Status line: what the list already knows now, then airing status, season, next
+  // episode and its countdown once the AniList lookup below answers.
+  var meta = mk("div", "hmeta");
+  function drawMeta(info) {
+    meta.innerHTML = "";
+    var st = info && info.status ? String(info.status) : "";
+    if (st) meta.appendChild(mk("b", "hstatus" + (st === "RELEASING" ? " live" : st === "NOT_YET_RELEASED" ? " soon" : ""), st.replace(/_/g, " ")));
+    var season = info && info.season ? (cap(String(info.season).toLowerCase()) + " " + (info.year || "")).trim() : "";
+    if (season) meta.appendChild(heroMetaItem("cal", season));
+    else if (a.meta) meta.appendChild(heroMetaItem("cal", a.meta));
+    var next = info && info.next;
+    if (next && next.episode) meta.appendChild(heroMetaItem("ep", "Ep " + next.episode));
+    else if (a.ep) meta.appendChild(heroMetaItem("ep", a.ep));
+    var left = next && next.airingAt ? heroCountdown(next.airingAt) : "";
+    if (left) meta.appendChild(heroMetaItem("clock", left));
+  }
+  drawMeta(null);
   heroArt(a).then(function(x) {
+    if (x.info) drawMeta(x.info);
     if (x.cover && x.cover !== a.img) whenLoaded(x.cover, setCover);
     var wide = x.banners || [];
     (function tryWide(n) {
@@ -527,28 +592,32 @@ function heroSlide(a, i) {
     })(0);
   });
   var c = mk("div", "hcontent");
-  c.appendChild(mk("span", "hkicker", "#" + (i + 1) + " Trending now"));
   c.appendChild(mk("h1", "htitle", a.title));
-  var meta = mk("div", "hmeta");
-  if (a.meta) meta.appendChild(mk("b", "", a.meta));
-  if (a.ep) meta.appendChild(mk("span", "", "\u00b7 " + a.ep));
   c.appendChild(meta);
-  var gen = mk("div", "hgen");
-  (a.genres || []).slice(0, 3).forEach(function(g) { gen.appendChild(mk("span", "", g)); });
-  if (gen.childNodes.length) c.appendChild(gen);
   c.appendChild(mk("p", "hdesc", (a.description || "").replace(/\s+/g, " ").trim() || "No synopsis yet."));
   var btns = mk("div", "hbtns");
   var play = mk("button", "hbtn pri"); play.type = "button";
-  play.innerHTML = '<svg viewBox="0 0 24 24"><path d="M6 4l14 8-14 8V4Z" fill="currentColor" stroke="none"/></svg>Watch now';
+  play.innerHTML = '<svg viewBox="0 0 24 24"><path d="M6 4l14 8-14 8V4Z" fill="currentColor" stroke="none"/></svg>Watch Now';
   play.onclick = function() { AUTO = true; openTitle(a); };
-  var info = mk("button", "hbtn", "More info"); info.type = "button";
+  var info = mk("button", "hbtn ico"); info.type = "button";
+  info.title = "More info"; info.setAttribute("aria-label", "More info about " + a.title);
+  info.innerHTML = '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v6"/><path d="M12 7.5v.01"/></svg>';
   info.onclick = function() { openTitle(a); };
-  var save = mk("button", "hbtn", heroLibLabel(a)); save.type = "button";
+  var save = mk("button", "hbtn ico"); save.type = "button";
+  function drawSave() {
+    var saved = !!LIB[a.id];
+    save.classList.toggle("saved", saved);
+    save.title = saved ? "In your library (click to remove)" : "Add to my list";
+    save.setAttribute("aria-label", save.title);
+    save.setAttribute("aria-pressed", String(saved));
+    save.innerHTML = saved ? '<svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>' : '<svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>';
+  }
+  drawSave();
   save.onclick = function() {
     if (LIB[a.id]) delete LIB[a.id];
     else LIB[a.id] = snap(a);
     saveLib();
-    save.textContent = heroLibLabel(a);
+    drawSave();
   };
   [play, info, save].forEach(function(b) { btns.appendChild(b); });
   c.appendChild(btns);
@@ -560,7 +629,7 @@ function heroSlide(a, i) {
 //    accepts a genuinely matching title. Gives bannerImage + a full-size cover + MAL id.
 // 2) Kitsu: wide cover art via the MAL id, used when AniList has no banner (common for new shows).
 var HC = {}, HQ = Promise.resolve();
-var HERO_ART_F = 'idMal title{romaji english native} synonyms bannerImage coverImage{extraLarge}';
+var HERO_ART_F = 'idMal title{romaji english native} synonyms bannerImage coverImage{extraLarge} status season seasonYear nextAiringEpisode{episode airingAt}';
 function heroMatch(want, x) {
   var names = [x.title.romaji, x.title.english, x.title.native].concat(x.synonyms || []).map(norm).filter(Boolean);
   return names.some(function(n) {
@@ -608,6 +677,7 @@ function heroArt(a) {
     [raw.banner, raw.bannerImage, raw.background, raw.cover_image].forEach(function(u) { if (typeof u === "string" && /^https?:/.test(u)) out.banners.push(u); });
     if (!m) return out;
     out.cover = (m.coverImage && m.coverImage.extraLarge) || "";
+    out.info = { status: m.status || "", season: m.season || "", year: m.seasonYear || "", next: m.nextAiringEpisode || null };
     if (m.bannerImage) out.banners.unshift(m.bannerImage);
     // Kitsu art is usually larger than AniList banners, so try it first
     return kitsuWide(m.idMal || malId).then(function(u) { if (u) out.banners.unshift(u); return out; });
@@ -634,6 +704,37 @@ function renderHero(list) {
     dots.appendChild(b);
   });
   h.appendChild(dots);
+  if (items.length > 1) {
+    var nav = mk("div", "hnav");
+    [[-1, "Previous slide", '<svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg>'], [1, "Next slide", '<svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg>']].forEach(function(d) {
+      var b = mk("button"); b.type = "button"; b.setAttribute("aria-label", d[1]); b.innerHTML = d[2];
+      b.onclick = function() { heroGo((HERO_I + d[0] + items.length) % items.length); heroArm(); };
+      nav.appendChild(b);
+    });
+    h.appendChild(nav);
+  }
+  // The banner runs edge to edge, but its text lines up with the page content below it.
+  var homeEl = document.getElementById("home");
+  function heroPad() {
+    var left = homeEl ? homeEl.getBoundingClientRect().left - h.getBoundingClientRect().left : 0;
+    if (left > 0) h.style.setProperty("--hpad", Math.round(left) + "px");
+  }
+  heroPad();
+  if (!window.__heroPadBound) {
+    window.__heroPadBound = true;
+    window.addEventListener("resize", function() { if (window.__heroPad) window.__heroPad(); });
+  }
+  window.__heroPad = heroPad;
+  // Swipe sideways on a touch screen to change slide.
+  var swipeX = null, swipeY = 0;
+  h.ontouchstart = function(e) { swipeX = e.touches[0].clientX; swipeY = e.touches[0].clientY; };
+  h.ontouchend = function(e) {
+    if (swipeX === null || items.length < 2) return;
+    var dx = e.changedTouches[0].clientX - swipeX, dy = e.changedTouches[0].clientY - swipeY;
+    swipeX = null;
+    if (Math.abs(dx) < 50 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
+    heroGo((HERO_I + (dx < 0 ? 1 : -1) + items.length) % items.length); heroArm();
+  };
   function heroGo(i) {
     HERO_I = i;
     var slides = h.querySelectorAll(".hslide");
