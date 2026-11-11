@@ -267,6 +267,38 @@ html{overflow-x:clip}
 #home .sub+.rowwrap .rarr.show{opacity:1;pointer-events:auto}
 #home .sub+.rowwrap .rarr:hover{transform:none;background:#f2f2f3;color:#0b0b0c}
 #home .sub+.rowwrap:not(:has(.rarr.show)) .rarr{display:none}
+/* Home V2 look carried to the other pages */
+#discover h2,#library h2,#manga h2,#schedule h2,.vbar h2{display:flex;align-items:center;gap:10px}
+#discover h2::before,#library h2::before,#manga h2::before,#schedule h2::before,.vbar h2::before{content:"";width:5px;height:22px;border-radius:3px;background:var(--text);flex:none}
+.vbar h2::before{height:19px}
+#manga .sub+.rowwrap .rarr{top:-58px;margin-top:0;width:32px;height:32px;border-radius:7px;background:#1c1c20;border-color:#2e2e34;box-shadow:none;backdrop-filter:none;-webkit-backdrop-filter:none;opacity:.35;pointer-events:none}
+#manga .sub+.rowwrap .rarr svg{width:15px;height:15px}
+#manga .sub+.rowwrap .rarr.l{left:auto;right:40px}
+#manga .sub+.rowwrap .rarr.r{right:0}
+#manga .sub+.rowwrap .rarr.show{opacity:1;pointer-events:auto}
+#manga .sub+.rowwrap .rarr:hover{transform:none;background:#f2f2f3;color:#0b0b0c}
+#manga .sub+.rowwrap:not(:has(.rarr.show)) .rarr{display:none}
+#manga h2+.sub{margin-left:15px}
+.vbtn{border-radius:8px}
+/* Detail pages: banner-style backdrop behind the header */
+#detail{position:relative}
+.vbackdrop{position:absolute;z-index:0;top:-18px;left:calc(50% - 50vw);width:100vw;height:clamp(360px,60vh,620px);overflow:hidden;pointer-events:none;background:var(--panel)}
+.vbd-img{position:absolute;left:-30px;top:-30px;width:calc(100% + 60px);height:calc(100% + 60px);object-fit:cover;object-position:center 22%;filter:blur(26px) brightness(.5) saturate(1.15)}
+.vbd-img:not([src]){display:none}
+.vbackdrop.wide .vbd-img{left:0;top:0;width:100%;height:100%;filter:brightness(.74)}
+.vbd-shade{position:absolute;inset:0;background:linear-gradient(to top,var(--bg) 0%,rgba(11,11,12,.9) 20%,rgba(11,11,12,.5) 58%,rgba(11,11,12,.3) 100%),linear-gradient(to right,rgba(11,11,12,.62) 0%,rgba(11,11,12,0) 62%)}
+.v.has-bd>*:not(.vbackdrop){position:relative;z-index:1}
+.v.has-bd .back{color:#e6e6ea;text-shadow:0 1px 8px rgba(0,0,0,.7)}
+.v.has-bd .vhead{background:none;border:0;border-radius:0;padding:0;margin-top:clamp(24px,8vh,110px)}
+.v.has-bd .vposter .poster{box-shadow:0 18px 50px rgba(0,0,0,.6)}
+.v.has-bd .vtitle{background:linear-gradient(90deg,#74bfff 0%,#e9f4ff 78%);-webkit-background-clip:text;background-clip:text;color:transparent;-webkit-text-fill-color:transparent;filter:drop-shadow(0 2px 12px rgba(0,0,0,.5));padding-bottom:3px}
+.v.has-bd .valt{color:#c9c9d0;text-shadow:0 1px 8px rgba(0,0,0,.6)}
+.v.has-bd .vchip{background:rgba(20,20,23,.62);border-color:rgba(255,255,255,.16);color:#e6e6ea;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+.v.has-bd .vstats{background:rgba(16,16,18,.58);border-color:rgba(255,255,255,.14);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+.v.has-bd .vstats div{border-color:rgba(255,255,255,.14)}
+.v.has-bd .vgen span{background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.14);color:#e6e6ea}
+.v.has-bd .dclamp{color:#e0e0e5;text-shadow:0 1px 8px rgba(0,0,0,.55)}
+@media(max-width:760px){.vbackdrop{height:clamp(300px,52vh,460px)}.v.has-bd .vhead{margin-top:18px}}
 .card .poster{transition:transform .18s ease}
 .card:hover .poster{transform:translateY(-3px)}
 @media(prefers-reduced-motion:reduce){.card .poster{transition:none}.card:hover .poster{transform:none}}
@@ -1027,12 +1059,41 @@ function getSeries(id) {
 function fmtList(v) { return Array.isArray(v) ? v.join(", ") : (v || ""); }
 var REDUCE = !!(window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches);
 
+// Detail pages: a wide, faded picture behind the header, in the style of the home banner.
+// It starts as a soft blur of the cover; for anime, wide art replaces it when AniList or Kitsu has some.
+function detailBackdrop(root, a, lookUpArt) {
+  var bd = mk("div", "vbackdrop"), img = new Image(), shade = mk("div", "vbd-shade");
+  bd.setAttribute("aria-hidden", "true");
+  img.className = "vbd-img"; img.alt = ""; img.decoding = "async"; img.referrerPolicy = "no-referrer";
+  img.onerror = function() { img.removeAttribute("src"); };
+  if (a.img) img.src = a.img;
+  bd.appendChild(img); bd.appendChild(shade);
+  root.classList.add("has-bd");
+  root.insertBefore(bd, root.firstChild);
+  if (!lookUpArt) return;
+  heroArt(a).then(function(x) {
+    var wide = (x && x.banners) || [];
+    (function tryWide(n) {
+      if (n >= wide.length || !bd.isConnected) return;
+      var t = new Image(); t.referrerPolicy = "no-referrer";
+      t.onload = function() {
+        // only art that is genuinely wide and large enough to fill the space without blurring
+        if (t.naturalWidth >= 1000 && t.naturalWidth / t.naturalHeight >= 1.6) { img.src = wide[n]; bd.classList.add("wide"); }
+        else tryWide(n + 1);
+      };
+      t.onerror = function() { tryWide(n + 1); };
+      t.src = wide[n];
+    })(0);
+  }).catch(function() {});
+}
+
 function detail(a, wantEp) {
   if (!a) return;
   var d = document.getElementById("detail");
   if (!d) return;
   d.innerHTML = "";
   var root = mk("div", "v"); d.appendChild(root);
+  detailBackdrop(root, a, true);
   var auto = AUTO; AUTO = false;
 
   var back = mk("button", "back", "\u2190 Back");
@@ -2748,6 +2809,7 @@ function mangaDetail(a, wantCh) {
   var d = document.getElementById("detail"); if (!d) return;
   d.innerHTML = "";
   var root = mk("div", "v"); d.appendChild(root);
+  detailBackdrop(root, a, false);
   var back = mk("button", "back", "\u2190 Back"); back.onclick = goBack; root.appendChild(back);
 
   var head = mk("div", "vhead"), pw = mk("div", "vposter"), ph = mk("div", "poster");
