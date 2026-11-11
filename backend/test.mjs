@@ -5,7 +5,7 @@ import crypto from 'node:crypto';
 // server.mjs reads its settings once, when it is imported, so they are set first and the
 // modules are loaded with import() afterwards. Nothing here touches the network.
 process.env.NODE_ENV = 'test';
-process.env.MEDIA_HOSTS = 'media.example.test';
+process.env.MEDIA_HOSTS = 'media.example.test,*.wild.example.test';
 process.env.HOSHI_RELAY_ENABLED = 'false';
 process.env.RELAY_SIGNING_KEY = 'offline-test-only-' + crypto.randomBytes(32).toString('hex');
 process.env.RELAY_PUBLIC_BASE = 'https://stream.example.test/';
@@ -53,6 +53,15 @@ test('reject captions and renditions from non-allowlisted hosts', () => {
     '#EXT-X-STREAM-INF:BANDWIDTH=400\n' +
     'https://other.test/720.m3u8';
   assert.deepEqual(parseMaster(payload, master), { qualities: [], subtitles: [] });
+});
+
+test('a "*.domain" entry covers every subdomain and nothing else', () => {
+  const variant = host => parseMaster('#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=400,RESOLUTION=1280x720\nhttps://' + host + '/720.m3u8', master).qualities.length;
+  assert.equal(variant('ab12c.wild.example.test'), 1);
+  assert.equal(variant('a.b.wild.example.test'), 1);
+  assert.equal(variant('wild.example.test'), 0);
+  assert.equal(variant('notwild.example.test'), 0);
+  assert.equal(variant('wild.example.test.evil.test'), 0);
 });
 
 test('empty catalog always falls back to embed', async () => {
