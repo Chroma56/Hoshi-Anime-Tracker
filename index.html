@@ -339,6 +339,23 @@ h2{font:800 24px "Bricolage Grotesque",sans-serif;margin:36px 0 2px}
 .h4-upnext-actions button{border-radius:9px;padding:8px 12px;font-family:inherit;font-weight:700;font-size:12px;cursor:pointer;border:1px solid #ffffff40;background:transparent;color:#fff}
 .h4-upnext-actions .h4-upnext-play{flex:1;background:#f5f5f4;color:#08080b;border-color:transparent}
 .hdp-settings label.hdp-check{flex-direction:row;align-items:center;gap:7px}
+/* Settings menu inside the picture */
+.h4-menu{position:absolute;right:18px;bottom:84px;z-index:8;width:min(340px,calc(100% - 36px));max-height:calc(100% - 104px);overflow:auto;overscroll-behavior:contain;background:#101014f5;border:1px solid #ffffff30;border-radius:14px;padding:12px 14px 14px;color:#fff;box-shadow:0 18px 50px #000c;display:grid;gap:11px;scrollbar-width:thin}
+.h4-menu[hidden]{display:none}
+.h4-menu-head{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.h4-menu-title{font:800 14px "Bricolage Grotesque",sans-serif;letter-spacing:-.01em}
+.h4-menu-close{width:28px;height:28px;border-radius:8px;border:1px solid transparent;background:transparent;color:#fff;font-size:13px;cursor:pointer;display:grid;place-items:center}
+.h4-menu-close:hover,.h4-menu-close:focus-visible{background:#ffffff29;border-color:#ffffff30}
+.h4-menu .hdp-settings{display:grid;grid-template-columns:1fr 1fr;gap:11px 12px;align-items:end}
+.h4-menu .hdp-settings label{color:#c9c9d0;min-width:0}
+.h4-menu .hdp-settings select,.h4-menu .hdp-settings input[type=number],.h4-menu .hdp-settings input[type=range],.h4-menu .hdp-settings input[type=color]{width:100%!important;min-width:0;box-sizing:border-box}
+.h4-menu .hdp-settings input[type=color]{height:35px;padding:3px}
+.h4-menu .hdp-settings label:first-child,.h4-menu .hdp-settings label:has(input[type=file]),.h4-menu .hdp-settings label.hdp-check{grid-column:1/-1}
+.h4-menu .hdp-file{max-width:100%;width:100%}
+.h4-menu .hdp-settings label.hdp-check{color:#fff;font-size:12px}
+.h4-menu .hdp-status{font-size:11px;line-height:1.45;color:#9b9ba4;border-top:1px solid #ffffff1f;padding-top:9px}
+.hdp-stage.h4-idle .h4-menu{display:none}
+@media(max-width:640px){.h4-menu{right:8px;bottom:62px;width:min(300px,calc(100% - 16px));max-height:calc(100% - 72px);padding:10px}}
 .hdp-stage:fullscreen{max-height:none;aspect-ratio:auto;width:100%;height:100%}
 .hdp-stage:fullscreen .hdp-video{max-height:none}
 @media(max-width:640px){.h4-skip,.h4-upnext{right:10px;bottom:70px}}
@@ -1388,6 +1405,26 @@ function detail(a, wantEp) {
     caption.classList.add("h4-outline");
     controls.appendChild(bottom); stage.appendChild(controls);
 
+    // ── Settings menu, inside the picture ──
+    // The same controls that sit under the embed are moved in here while the direct player is
+    // up (so they also work in fullscreen) and handed back when it closes.
+    var menu = mk("div", "h4-menu"); menu.hidden = true;
+    menu.setAttribute("role", "dialog"); menu.setAttribute("aria-label", "Player settings");
+    var menuHead = mk("div", "h4-menu-head");
+    menuHead.appendChild(mk("span", "h4-menu-title", "Player settings"));
+    var menuClose = mk("button", "h4-menu-close", "✕"); menuClose.type = "button"; menuClose.setAttribute("aria-label", "Close settings");
+    menuHead.appendChild(menuClose);
+    menu.appendChild(menuHead); menu.appendChild(settings); menu.appendChild(playerStatus);
+    stage.appendChild(menu);
+    function closeMenu() { menu.hidden = true; caption.setAttribute("aria-expanded", "false"); }
+    function toggleMenu() {
+      menu.hidden = !menu.hidden;
+      caption.setAttribute("aria-expanded", String(!menu.hidden));
+      wake();
+    }
+    menuClose.onclick = function() { closeMenu(); stage.focus({preventScroll:true}); };
+    onCleanup(function() { directPanel.appendChild(settings); directPanel.appendChild(playerStatus); });
+
     function formatTime(t) { t = Number.isFinite(t) ? Math.max(0, Math.floor(t)) : 0; var h = Math.floor(t/3600), m = Math.floor(t%3600/60), sec = t%60; return (h ? h + ":" + String(m).padStart(2,"0") : m) + ":" + String(sec).padStart(2,"0"); }
     var flashTimer = 0;
     function flash(text) {
@@ -1478,7 +1515,7 @@ function detail(a, wantEp) {
     nextEp.onclick = function() { goEpisode(1); };
     mute.onclick = toggleMute;
     volume.oninput = function() { setVolume(+volume.value); };
-    caption.onclick = function() { directPanel.hidden = !directPanel.hidden; };
+    caption.onclick = toggleMenu;
     pip.onclick = function() { if (document.pictureInPictureElement) document.exitPictureInPicture().catch(function(){}); else if (video.requestPictureInPicture) video.requestPictureInPicture().catch(function(){ message("Picture-in-picture is unavailable."); }); else message("Picture-in-picture is unavailable."); };
     full.onclick = toggleFullscreen;
     var startVolume = Number(playerPrefs.volume);
@@ -1491,12 +1528,12 @@ function detail(a, wantEp) {
       clearTimeout(hideTimer);
       hideTimer = setTimeout(function() {
         // Keep the controls up while paused or while the keyboard is on one of them.
-        if (!video.paused && !controls.contains(document.activeElement)) stage.classList.add("h4-idle");
+        if (!video.paused && menu.hidden && !controls.contains(document.activeElement)) stage.classList.add("h4-idle");
       }, 2600);
     }
     onCleanup(function() { clearTimeout(hideTimer); });
     stage.addEventListener("mousemove", wake);
-    stage.addEventListener("mouseleave", function() { if (!video.paused && !controls.contains(document.activeElement)) stage.classList.add("h4-idle"); });
+    stage.addEventListener("mouseleave", function() { if (!video.paused && menu.hidden && !controls.contains(document.activeElement)) stage.classList.add("h4-idle"); });
     stage.addEventListener("focusin", wake);
 
     // ── Mouse and touch on the picture ──
@@ -1530,6 +1567,8 @@ function detail(a, wantEp) {
         return;
       }
       if (g.moved || e.type === "pointercancel") return;
+      // A tap on the picture while the settings are open only closes them.
+      if (!menu.hidden) { closeMenu(); g.lastUp = 0; return; }
       var r = gesture.getBoundingClientRect();
       var x = r.width ? (e.clientX - r.left) / r.width : 0.5;
       clearTimeout(g.timer);
@@ -1548,13 +1587,19 @@ function detail(a, wantEp) {
     gesture.addEventListener("pointerup", touchEnd);
     gesture.addEventListener("pointercancel", touchEnd);
     gesture.addEventListener("contextmenu", function(e) { if (touched) e.preventDefault(); });
-    gesture.addEventListener("click", function() { stage.focus({preventScroll:true}); if (!touched) togglePlay(); });
+    gesture.addEventListener("click", function() {
+      stage.focus({preventScroll:true});
+      if (touched) return;
+      if (!menu.hidden) { closeMenu(); return; }
+      togglePlay();
+    });
     gesture.addEventListener("dblclick", function() { if (!touched) toggleFullscreen(); });
     onCleanup(function() { clearTimeout(g.hold); clearTimeout(g.timer); });
 
     // ── Keyboard (while the player has focus) ──
     stage.addEventListener("keydown", function(e) {
       if (e.ctrlKey || e.metaKey || e.altKey) return;
+      if (e.key === "Escape" && !menu.hidden) { closeMenu(); stage.focus({preventScroll:true}); e.preventDefault(); return; }
       var tag = e.target.tagName;
       if (tag === "INPUT" || tag === "SELECT" || tag === "TEXTAREA") return;
       var k = e.key.toLowerCase();
@@ -1696,7 +1741,7 @@ function detail(a, wantEp) {
     }
 
     ["timeupdate","durationchange","loadedmetadata","play","pause","ended","seeking","volumechange"].forEach(function(ev) { video.addEventListener(ev,sync); });
-    h4Ui = {stage:stage, video:video, sync:sync}; sync();
+    h4Ui = {stage:stage, video:video, sync:sync, toggleMenu:toggleMenu}; sync();
     video.playbackRate = +(speedSelect.value || 1);
     video.addEventListener("timeupdate", videoCues);
     video.addEventListener("error", function() {
@@ -1781,7 +1826,8 @@ function detail(a, wantEp) {
     if (/^WEBVTT/.test(txt.trim())) return txt;
     return "WEBVTT\n\n" + txt.replace(/(\d\d:\d\d:\d\d),(\d{3})/g, "$1.$2");
   }
-  directButton.onclick = function() { if (directMode) directPanel.hidden = !directPanel.hidden; else openDirectPanel(); };
+  // With the direct player up, the settings open inside the picture; under an embed they stay below it.
+  directButton.onclick = function() { if (directMode && h4Ui && h4Ui.toggleMenu) h4Ui.toggleMenu(); else if (directMode) directPanel.hidden = !directPanel.hidden; else openDirectPanel(); };
   directLoad.onclick = function() { loadDirect(directInput.value.trim()); };
   embedBack.onclick = function() { if (curIdx > -1) { ++streamLookupToken; preferEmbed = true; playIdx(curIdx, true); } };
   sourceSwitch.onclick = embedBack.onclick;
