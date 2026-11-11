@@ -90,7 +90,10 @@ async function upstream(url, range, referer = '') {
   return new Promise((resolve,reject)=>{
     const req=https.request(parsed,{
       method:'GET',timeout:12000,
-      lookup:(_host,_opts,cb)=>cb(null,target.address,target.family),
+      lookup:(_host, opts, cb)=> {
+        if (opts?.all) cb(null, [{ address:target.address, family:target.family }]);
+        else cb(null, target.address, target.family);
+      },
       headers:{Accept:'*/*', ...(range ? {Range:range} : {}), ...(referer ? {Referer:referer, Origin:new URL(referer).origin} : {})}
     },res=>resolve(res));
     req.on('timeout',()=>req.destroy(Error('Upstream timeout')));
