@@ -1004,10 +1004,23 @@ export async function resolvePlayzStyle(
     return null;
   }
 
-  const match =
-    /^al([1-9]\d{0,9})$/.exec(
-      String(series)
-    );
+  // The embed host has three addresses for an episode,
+  // and a show can exist under one but not another:
+  //   al<id>   /stream/ani/<AniList id>/<episode>/<lang>
+  //   mal<id>  /stream/mal/<MAL id>/<episode>/<lang>
+  //   s2-<id>  /stream/s-2/<episode embed id>/<lang>
+  const seriesText = String(series);
+
+  const byAni =
+    /^al([1-9]\d{0,9})$/.exec(seriesText);
+
+  const byMal =
+    /^mal([1-9]\d{0,9})$/.exec(seriesText);
+
+  const byEmbed =
+    /^s2-([1-9]\d{0,17})$/.exec(seriesText);
+
+  const match = byAni || byMal || byEmbed;
 
   if (
     !match ||
@@ -1047,9 +1060,12 @@ export async function resolvePlayzStyle(
   // EMBED METADATA
   // ------------------------------------------
 
+  const embedPath = byEmbed
+    ? `s-2/${byEmbed[1]}/${lang}`
+    : `${byAni ? 'ani' : 'mal'}/${match[1]}/${episode}/${lang}`;
+
   const embedUrl =
-    `${EMBED_ORIGIN}/stream/ani/` +
-    `${match[1]}/${episode}/${lang}`;
+    `${EMBED_ORIGIN}/stream/${embedPath}`;
 
   try {
     const html = await getText(
