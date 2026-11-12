@@ -1,5 +1,6 @@
 // Hoshi Backend V3.3 - opt-in signed media relay for authorised HTTPS sources.
 // Original implementation. Not a MegaPlay stream extractor.
+// V3.3+: polite upstream layer (per-domain throttle, 429 retry, caching, resolve de-duplication).
 import http from 'node:http';
 import https from 'node:https';
 import dns from 'node:dns/promises';
@@ -30,6 +31,14 @@ const RELAY_BASE = process.env.RELAY_PUBLIC_BASE || '';
 // HTTPS host (each one is signed here and DNS-checked on fetch). Set RELAY_STRICT_HOSTS=true
 // to drop everything that is not on MEDIA_HOSTS, as V3.2 did.
 const STRICT_HOSTS = process.env.RELAY_STRICT_HOSTS === 'true';
+
+// Polite upstream tuning. If the log still shows HTTP 429, lower CONCURRENCY (try 2) and/or
+// raise MIN_GAP_MS (try 300). No code edit needed: set them as environment variables.
+const UPSTREAM_CONCURRENCY = Math.max(1, Number(process.env.UPSTREAM_CONCURRENCY || 4));
+const UPSTREAM_MIN_GAP_MS = Math.max(0, Number(process.env.UPSTREAM_MIN_GAP_MS || 120));
+const UPSTREAM_ATTEMPTS = 4;                                        // tries per request on 429/503
+const RESOLVE_TTL_MS = Number(process.env.RESOLVE_TTL_MS || 120000); // keep well under any provider token lifetime
+const RESOLVE_FAIL_TTL_MS = 10000;                                  // "unavailable" and errors are remembered briefly
 
 /*
  * Relay links carry their kind in the path, so the link itself still ends in the extension
@@ -93,7 +102,7 @@ function attrs(line) {
 }
 function parseMaster(text, source) {
   const qualities = [], subs = [];
-  const lines = text.replace(/^﻿/, '').split(/\r?\n/).map(x => x.trim()).filter(Boolean);
+  const lines = text.replace(/^\uFEFF/, '').split(/\r?\n/).map(x => x.trim()).filter(Boolean);
   if (lines[0] !== '#EXTM3U') return {qualities,subtitles:subs};
   for (let i=0;i<lines.length;i++) {
     const line=lines[i];
@@ -169,6 +178,163 @@ async function readLimited(stream,max) {
   }
   return Buffer.concat(chunks).toString('utf8');
 }
+
+// ---- polite upstream layer -------------------------------------------------------------
+// Everything that talks to the media host goes through upstreamPolite(): requests to one
+// domain are spaced out and capped, a 429/503 pauses the whole domain and is retried with
+// backoff BEFORE any response headers reach the viewer, and small files are cached.
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+// CDNs hand out random subdomains (20f9h.wintergrove.space, fn5an.wintergrove.space) but
+// rate-limit by IP or domain, so throttle per registrable-looking domain, not per host name.
+function gateKey(host) { const p = host.split('.'); return p.length > 2 ? p.slice(-2).join('.') : host; }
+
+const gates = new Map();
+function gateFor(key) {
+  let g = gates.get(key);
+  if (!g) { g = { active: 0, waiters: [], nextSlot: 0, cooldownUntil: 0 }; gates.set(key, g); }
+  return g;
+}
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, g] of gates) if (!g.active && !g.waiters.length && g.nextSlot < now && g.cooldownUntil < now) gates.delete(key);
+}, 60000).unref();
+
+async function withGate(key, aborted, fn) {
+  const g = gateFor(key);
+  while (g.active >= UPSTREAM_CONCURRENCY) await new Promise(r => g.waiters.push(r));
+  g.active++;
+  try {
+    const now = Date.now();
+    const slot = Math.max(now, g.nextSlot, g.cooldownUntil);
+    g.nextSlot = slot + UPSTREAM_MIN_GAP_MS;
+    if (slot > now) await sleep(slot - now);
+    // a 429 seen while we were queued pauses everyone who reserved a slot earlier
+    for (let wait = g.cooldownUntil - Date.now(); wait > 0; wait = g.cooldownUntil - Date.now()) await sleep(wait);
+    if (aborted()) throw Error('Viewer left');
+    return await fn();
+  } finally {
+    g.active--;
+    g.waiters.shift()?.();
+  }
+}
+
+function parseRetryAfter(value) {
+  if (!value) return null;
+  const secs = Number(value);
+  if (!Number.isNaN(secs)) return Math.max(0, secs) * 1000;
+  const date = Date.parse(value);
+  return Number.isNaN(date) ? null : Math.max(0, date - Date.now());
+}
+
+/** Drop-in replacement for upstream(). `aborted` lets a viewer who left stop waiting. */
+async function upstreamPolite(url, range, referer = '', aborted = () => false) {
+  const key = gateKey(new URL(url).hostname);
+  for (let attempt = 0; ; attempt++) {
+    let source;
+    try {
+      source = await withGate(key, aborted, () => upstream(url, range, referer));
+    } catch (e) {
+      const transient = /timeout|ECONNRESET|ETIMEDOUT|EAI_AGAIN|socket hang up/i.test(String(e?.code || '') + ' ' + String(e?.message || ''));
+      if (!transient || attempt >= 2 || aborted()) throw e;
+      await sleep(300 * 2 ** attempt);
+      continue;
+    }
+    if (![429, 503].includes(source.statusCode) || attempt >= UPSTREAM_ATTEMPTS - 1 || aborted()) return source;
+    source.resume();
+    const retryAfter = parseRetryAfter(source.headers['retry-after']);
+    const wait = Math.min(Math.max(retryAfter ?? 0, 400 * 2 ** attempt), 8000) + Math.random() * 250;
+    const g = gateFor(key);
+    g.cooldownUntil = Math.max(g.cooldownUntil, Date.now() + wait); // pause the whole domain
+    await sleep(wait);
+  }
+}
+
+async function readBytes(stream, max) {
+  let length = 0; const chunks = [];
+  for await (const piece of stream) {
+    length += piece.length;
+    if (length > max) { stream.destroy(); throw Error('Response too large'); }
+    chunks.push(piece);
+  }
+  return Buffer.concat(chunks);
+}
+
+// Playlists: the raw upstream text is cached briefly, but every response is still re-signed
+// with a fresh expiry by rewritePlaylist(). Finished (VOD) and master playlists don't change;
+// live playlists must stay fresh.
+const playlists = new Map(), playlistFlight = new Map();
+const PLAYLIST_STALE_MS = 10 * 60000;
+async function getPlaylist(url, referer) {
+  const key = referer + '|' + url;
+  const hit = playlists.get(key);
+  if (hit && hit.expires > Date.now()) return hit;
+  if (playlistFlight.has(key)) return playlistFlight.get(key);
+  const p = (async () => {
+    try {
+      const src = await upstreamPolite(url, undefined, referer);
+      if (src.statusCode !== 200) {
+        src.resume();
+        if (hit?.stable && hit.expires + PLAYLIST_STALE_MS > Date.now()) return hit; // host is refusing: reuse the last good copy
+        return { statusCode: src.statusCode, finalUrl: src.finalUrl };
+      }
+      const content = (await readLimited(src, MAX_PLAYLIST)).replace(/^\uFEFF/, '');
+      const ended = content.includes('#EXT-X-ENDLIST'), master = content.includes('#EXT-X-STREAM-INF');
+      const entry = { statusCode: 200, content, finalUrl: src.finalUrl, stable: ended || master, expires: Date.now() + (ended ? 300000 : master ? 60000 : 2000) };
+      if (content.trimStart().startsWith('#EXTM3U')) {
+        playlists.set(key, entry);
+        if (playlists.size > 200) playlists.delete(playlists.keys().next().value);
+      }
+      return entry;
+    } finally { playlistFlight.delete(key); }
+  })();
+  playlistFlight.set(key, p);
+  return p;
+}
+
+// Small stable files (subtitles, thumbnails): cached 30 minutes, served stale for up to 6
+// hours if the host is refusing us. Memory is bounded by total bytes.
+const SMALL_FILE = /\.(?:vtt|srt|jpe?g|png|webp|gif)$/i;
+const SMALL_TTL = 30 * 60000, SMALL_STALE = 6 * 3600000;
+const SMALL_MAX = 8 * 1024 * 1024, SMALL_BUDGET = 64 * 1024 * 1024;
+const small = new Map(), smallFlight = new Map();
+let smallBytes = 0;
+function smallPut(key, entry) {
+  const old = small.get(key);
+  if (old) { smallBytes -= old.body.length; small.delete(key); }
+  small.set(key, entry); smallBytes += entry.body.length;
+  while (smallBytes > SMALL_BUDGET && small.size > 1) {
+    const [k, v] = small.entries().next().value;
+    small.delete(k); smallBytes -= v.body.length;
+  }
+}
+async function getSmall(url, referer) {
+  const key = referer + '|' + url;
+  const hit = small.get(key);
+  if (hit && hit.expires > Date.now()) return hit;
+  if (smallFlight.has(key)) return smallFlight.get(key);
+  const fallback = () => (hit && hit.staleUntil > Date.now() ? hit : null);
+  const p = (async () => {
+    try {
+      const src = await upstreamPolite(url, undefined, referer);
+      if (src.statusCode !== 200) { src.resume(); return fallback(); }
+      const body = await readBytes(src, SMALL_MAX);
+      const entry = {
+        body,
+        type: src.headers['content-type'] || (/\.vtt$/i.test(new URL(url).pathname) ? 'text/vtt; charset=utf-8' : 'application/octet-stream'),
+        expires: Date.now() + SMALL_TTL,
+        staleUntil: Date.now() + SMALL_TTL + SMALL_STALE
+      };
+      smallPut(key, entry);
+      return entry;
+    } catch { return fallback(); }
+    finally { smallFlight.delete(key); }
+  })();
+  smallFlight.set(key, p);
+  return p;
+}
+// ---- end polite upstream layer ---------------------------------------------------------
+
 function signingReady() {
   try { const u=new URL(RELAY_BASE); return RELAY_ON && RELAY_KEY.length>=32 && u.protocol==='https:' && !u.username && !u.password && !u.hash && !u.search; }
   catch { return false; }
@@ -212,7 +378,7 @@ function rewritePlaylist(text, origin, exp, referer = '') {
     const playlist=/\.m3u8$/i.test(path) || hint==='variant' || (hint==='tag' && !FILE_EXTENSION.test(path));
     return signedLink(url,exp,referer,playlist ? 'hls' : 'file');
   };
-  return text.replace(/^﻿/,'').split(/\r?\n/).map(line=>{
+  return text.replace(/^\uFEFF/,'').split(/\r?\n/).map(line=>{
     const t=line.trim();
     if (!t) return line;
     if (t.startsWith('#')) {
@@ -256,20 +422,40 @@ async function media(req,res,url) {
   if (!permitted(target) || !validSignature(kind,target,exp,sig,referer)) return fail(403,{error:'Invalid or expired media link'});
   const range=kind==='hls' ? undefined : req.headers.range;
   if (range && !/^bytes=\d+-\d*$/.test(range)) return fail(400,{error:'Invalid byte range'});
+  const gone=()=>res.destroyed; // the viewer left (seek, tab closed): stop waiting for the host
   try {
-    const source=await upstream(target,range,referer);
+    // Playlists: cached and de-duplicated; still re-signed with a fresh expiry every time.
+    if (kind==='hls') {
+      const pl=await getPlaylist(target,referer);
+      if (pl.statusCode!==200) {
+        console.warn('Hoshi relay: upstream HTTP '+pl.statusCode+' from '+new URL(pl.finalUrl || target).hostname+' ('+kind+')');
+        return fail([404,410].includes(pl.statusCode) ? pl.statusCode : 502,{error:'Upstream media unavailable',upstreamStatus:pl.statusCode});
+      }
+      if (!pl.content.trimStart().startsWith('#EXTM3U')) return fail(502,{error:'Invalid HLS playlist'});
+      // Children get a fresh expiry each time, so a live playlist that keeps reloading never runs out.
+      const output=rewritePlaylist(pl.content,pl.finalUrl,expiry(),referer);
+      res.writeHead(200,{...cors(req),'Content-Type':'application/vnd.apple.mpegurl','Cache-Control':'no-store'});
+      return res.end(output);
+    }
+    // Subtitles and thumbnails: cached, and a failure must never break playback.
+    if (!range && (kind==='sub' || (kind==='file' && SMALL_FILE.test(new URL(target).pathname)))) {
+      const hit=await getSmall(target,referer);
+      if (hit) {
+        res.writeHead(200,{...cors(req),'Content-Type':hit.type,'Content-Length':hit.body.length,'Cache-Control':'private, max-age=600'});
+        return res.end(hit.body);
+      }
+      if (kind==='sub') { // an empty track instead of an error
+        res.writeHead(200,{...cors(req),'Content-Type':'text/vtt; charset=utf-8','Cache-Control':'no-store'});
+        return res.end('WEBVTT\n\n');
+      }
+      return fail(502,{error:'Upstream media unavailable'});
+    }
+    // Segments, keys, init sections, MP4: throttled and retried, then streamed through.
+    const source=await upstreamPolite(target,range,referer,gone);
     if (![200,206].includes(source.statusCode)) {
       source.resume();
       console.warn('Hoshi relay: upstream HTTP '+source.statusCode+' from '+new URL(source.finalUrl).hostname+' ('+kind+')');
       return fail([404,410,416].includes(source.statusCode) ? source.statusCode : 502,{error:'Upstream media unavailable',upstreamStatus:source.statusCode});
-    }
-    if (kind==='hls') {
-      const content=(await readLimited(source,MAX_PLAYLIST)).replace(/^﻿/,'');
-      if (!content.trimStart().startsWith('#EXTM3U')) return fail(502,{error:'Invalid HLS playlist'});
-      // Children get a fresh expiry each time, so a live playlist that keeps reloading never runs out.
-      const output=rewritePlaylist(content,source.finalUrl,expiry(),referer);
-      res.writeHead(200,{...cors(req),'Content-Type':'application/vnd.apple.mpegurl','Cache-Control':'no-store'});
-      return res.end(output);
     }
     // Segments and keys are capped; a whole MP4 is not, or anything over 64 MB could never play.
     const capped=kind!=='video';
@@ -283,12 +469,14 @@ async function media(req,res,url) {
     await pipeline(source,res);
   } catch(e) {
     // A viewer seeking or leaving closes the response mid-transfer; that is not worth a log line.
-    if (!res.destroyed) console.warn('Hoshi relay failed ('+kind+'):',String(e?.message || e).slice(0,140));
+    if (res.destroyed) return;
+    console.warn('Hoshi relay failed ('+kind+'):',String(e?.message || e).slice(0,140));
     if(!res.headersSent) fail(502,{error:'Media relay failed'}); else res.destroy();
   }
 }
 async function masterInfo(url,referer='') {
-  try { const stream=await upstream(url,null,referer); if (stream.statusCode!==200) {stream.resume();return {qualities:[],subtitles:[]};} return parseMaster(await readLimited(stream,MAX_PLAYLIST),stream.finalUrl); }
+  // Shares the playlist cache, so the player's own request for this master a moment later costs nothing.
+  try { const pl=await getPlaylist(url,referer); if (pl.statusCode!==200) return {qualities:[],subtitles:[]}; return parseMaster(pl.content,pl.finalUrl); }
   catch {return {qualities:[],subtitles:[]};}
 }
 async function resolve(series,episode,lang) {
@@ -315,6 +503,32 @@ async function resolve(series,episode,lang) {
   }
   return result;
 }
+// The page can call /resolve several times for one episode (re-renders, retries). Identical
+// calls share one provider lookup, and the answer is remembered briefly, failures included,
+// so a rate-limited provider is not asked again straight away. Links inside the answer last
+// LINK_TTL, so a couple of minutes of reuse costs nothing.
+const resolved = new Map(), resolveFlight = new Map();
+async function resolveCached(series,episode,lang) {
+  const key=series+':'+episode+':'+lang;
+  const hit=resolved.get(key);
+  if (hit && hit.expires>Date.now()) { if (hit.error) throw hit.error; return hit.value; }
+  if (resolveFlight.has(key)) return resolveFlight.get(key);
+  const p=(async()=>{
+    try {
+      const value=await resolve(series,episode,lang);
+      resolved.set(key,{value,expires:Date.now()+(value?.available ? RESOLVE_TTL_MS : RESOLVE_FAIL_TTL_MS)});
+      return value;
+    } catch(error) {
+      resolved.set(key,{error,expires:Date.now()+RESOLVE_FAIL_TTL_MS});
+      throw error;
+    } finally {
+      resolveFlight.delete(key);
+      if (resolved.size>200) resolved.delete(resolved.keys().next().value);
+    }
+  })();
+  resolveFlight.set(key,p);
+  return p;
+}
 const server=http.createServer(async(req,res)=>{
   try {
     const u=new URL(req.url || '/','http://localhost');
@@ -330,7 +544,7 @@ const server=http.createServer(async(req,res)=>{
     if(!BACKEND_TOKEN || req.headers.authorization!=='Bearer '+BACKEND_TOKEN) return json(res,401,{error:'Unauthorized'});
     const series=u.searchParams.get('series') || '',episode=u.searchParams.get('episode') || '',lang=u.searchParams.get('lang') || 'sub';
     if(!/^[A-Za-z0-9_-]{1,60}$/.test(series) || !/^\d{1,5}(?:\.\d{1,2})?$/.test(episode) || !['sub','dub'].includes(lang)) return json(res,400,{error:'Invalid parameters'});
-    return json(res,200,await resolve(series,episode,lang));
+    return json(res,200,await resolveCached(series,episode,lang));
   } catch(e) { console.error('Hoshi request error:',e?.message);if(!res.headersSent) json(res,500,{error:'Server error'});else res.destroy(); }
 });
 if(process.env.NODE_ENV!=='test') server.listen(PORT,'0.0.0.0',()=>console.log('Hoshi stream backend v4.1-playz listening on '+PORT));
