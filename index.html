@@ -219,10 +219,10 @@ html{overflow-x:clip}
 .hero[hidden]{display:none}
 .hslide{position:absolute;inset:0;display:flex;align-items:flex-end;opacity:0;visibility:hidden;transition:opacity .7s ease,visibility 0s linear .7s}
 .hslide.on{opacity:1;visibility:visible;transition:opacity .7s ease}
-/* No wide art yet: soft fill from the cover, with the cover itself shown sharp at its real size on the right */
-.hbg{position:absolute;inset:-40px;background-size:cover;background-position:center 18%;background-image:var(--hc,none);filter:blur(28px) brightness(.55) saturate(1.15)}
-.hart{position:absolute;top:0;right:0;height:100%;width:auto;max-width:62%;object-fit:cover;object-position:center 18%;-webkit-mask-image:linear-gradient(to right,transparent 0,#000 38%);mask-image:linear-gradient(to right,transparent 0,#000 38%)}
-.hart:not([src]){display:none}
+/* No wide art: the cover itself fills the banner edge to edge, unblurred. The browser smooths
+   the enlargement, so it looks soft rather than blocky. */
+.hbg{position:absolute;inset:0;background-size:cover;background-repeat:no-repeat;background-position:center 22%;background-image:var(--hc,none)}
+.hart{display:none}
 /* Wide art found (AniList banner or Kitsu cover): fill edge to edge, sharp */
 .hslide.wide .hbg{inset:0;filter:none;background-image:var(--hb);background-position:center 24%}
 .hslide.wide .hart{display:none}
@@ -809,11 +809,14 @@ function renderHero(list) {
   }
   function heroArm() {
     clearInterval(HERO_T);
-    if (!REDUCE && items.length > 1) HERO_T = setInterval(function() { heroGo((HERO_I + 1) % items.length); }, 6500);
+    // Moves to the next banner every 7 seconds. It no longer pauses under the mouse: the banner
+    // is now most of the screen, so the pointer is nearly always over it. Clicking a dash or an
+    // arrow restarts the 7 seconds; a hidden tab waits.
+    if (items.length > 1) HERO_T = setInterval(function() { if (!document.hidden) heroGo((HERO_I + 1) % items.length); }, 7000);
   }
   window.__heroArm = heroArm;
-  h.onmouseenter = function() { clearInterval(HERO_T); };
-  h.onmouseleave = heroArm;
+  h.onmouseenter = null;
+  h.onmouseleave = null;
   heroArm();
 }
 
