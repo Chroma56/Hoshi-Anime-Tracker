@@ -332,6 +332,30 @@ html{overflow-x:clip}
 .v.watching>.vhead{order:3}
 .v.watching .hdp-stage,.v.watching .hdp-video{max-height:76vh}
 }
+/* Account button and dialog */
+.acctbtn{position:fixed;top:calc(12px + env(safe-area-inset-top,0px));right:16px;z-index:640;width:40px;height:40px;border-radius:50%;border:1px solid rgba(255,255,255,.14);background:rgba(16,16,18,.72);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);color:var(--text);display:grid;place-items:center;cursor:pointer;font:800 15px "Bricolage Grotesque",sans-serif;box-shadow:0 8px 24px rgba(0,0,0,.4)}
+.acctbtn:hover{background:rgba(255,255,255,.16)}
+.acctbtn.in{background:var(--text);color:#0b0b0c;border-color:var(--text)}
+.acctbtn svg{width:19px;height:19px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.acctmodal{position:fixed;inset:0;z-index:1200;background:rgba(6,6,9,.78);display:flex;align-items:center;justify-content:center;padding:18px}
+.acctmodal[hidden]{display:none}
+.acctbox{position:relative;width:min(400px,100%);max-height:calc(100vh - 36px);overflow:auto;box-sizing:border-box;background:var(--panel);border:1px solid #303038;border-radius:18px;padding:24px 22px 20px;box-shadow:0 24px 70px rgba(0,0,0,.6)}
+.acctx{position:absolute;top:12px;right:12px;width:32px;height:32px;border-radius:9px;border:1px solid transparent;background:transparent;color:var(--mute);font-size:20px;line-height:1;cursor:pointer}
+.acctx:hover{background:var(--line);color:var(--text)}
+.accttitle{font:800 22px "Bricolage Grotesque",sans-serif;margin:0 0 8px}
+.acctline{color:var(--mute);font-size:13.5px;line-height:1.5;margin:0 0 16px}
+.acctform{display:grid;gap:12px}
+.acctfield{display:grid;gap:5px;font-size:12px;font-weight:700;color:#c9c9d0}
+.acctfield input{background:#19191e;border:1px solid #3b3b42;border-radius:10px;color:var(--text);padding:11px 12px;font:inherit;font-size:15px;font-weight:400}
+.acctfield input:focus{outline:2px solid var(--accent);outline-offset:1px}
+.acctnote{margin:0;min-height:18px;font-size:13px;color:#ffc857}
+.acctnote:empty{display:none}
+.acctform .vbtn{width:100%;padding:12px}
+.acctswap{display:block;margin:14px auto 0;background:none;border:0;color:var(--text);font:inherit;font-size:13px;font-weight:700;cursor:pointer;text-decoration:underline;text-underline-offset:3px}
+.acctstatus{font-size:12.5px;color:#a2e4b4;margin:0 0 16px}
+.acctrow{display:flex;gap:10px;flex-wrap:wrap}
+.acctrow .vbtn{flex:1}
+@media(max-width:640px){.acctbtn{right:10px;width:36px;height:36px}}
 .card .poster{transition:transform .18s ease}
 .card:hover .poster{transform:translateY(-3px)}
 @media(prefers-reduced-motion:reduce){.card .poster{transition:none}.card:hover .poster{transform:none}}
@@ -1088,6 +1112,33 @@ function mk(t, c, x) { var e = document.createElement(t); if (c) e.className = c
 var PROG = {}, SC = {};
 try { PROG = JSON.parse(localStorage.getItem("hoshi-prog") || "{}"); } catch (e) {}
 function saveProg() { try { localStorage.setItem("hoshi-prog", JSON.stringify(PROG)); } catch (e) {} }
+// Continue watching, the library and settings all live in this browser's storage. Some browsers
+// and privacy settings (blocked cookies, private windows) refuse it, and then everything is
+// forgotten on refresh with no error. Say so, instead of losing it silently.
+(function() {
+  var works = false;
+  try {
+    localStorage.setItem("hoshi-storage-test", "1");
+    works = localStorage.getItem("hoshi-storage-test") === "1";
+    localStorage.removeItem("hoshi-storage-test");
+  } catch (e) {}
+  // Ask the browser not to clear this site's data when it tidies up storage.
+  try { if (works && navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(function() {}); } catch (e) {}
+  if (works) return;
+  function warn() {
+    var n = document.createElement("div");
+    n.setAttribute("role", "status");
+    n.style.cssText = "position:fixed;left:50%;top:12px;transform:translateX(-50%);z-index:700;max-width:min(560px,calc(100% - 24px));background:#2a2113;border:1px solid #6b5320;color:#ffe2a8;border-radius:12px;padding:10px 38px 10px 14px;font-size:13px;line-height:1.45;box-shadow:0 12px 34px rgba(0,0,0,.5)";
+    n.textContent = "This browser is not letting Hoshi save anything, so Continue watching, your library and your settings will be gone after a refresh. Allow cookies and site data for this site (or leave private browsing) to keep them.";
+    var x = document.createElement("button");
+    x.type = "button"; x.setAttribute("aria-label", "Dismiss"); x.textContent = "×";
+    x.style.cssText = "position:absolute;right:8px;top:6px;background:none;border:0;color:inherit;font-size:18px;cursor:pointer;line-height:1";
+    x.onclick = function() { n.remove(); };
+    n.appendChild(x);
+    document.body.appendChild(n);
+  }
+  if (document.body) warn(); else document.addEventListener("DOMContentLoaded", warn);
+})();
 function getSeries(id) {
   if (SC[id]) return Promise.resolve(SC[id]);
   return fetchApi(API_BASE + "/series/" + id).then(function(r) { SC[id] = r; return r; });
@@ -3541,6 +3592,209 @@ new MutationObserver(function(muts) {
     });
   });
 }).observe(document.body, { childList: true, subtree: true });
+
+// ── Accounts: log in to keep Continue watching, the library and reading progress on the
+// server, so they survive a cleared browser and follow you to other devices. Without an
+// account everything works as before, saved in this browser only.
+(function() {
+  var AUTH = null, dirty = false;
+  try { AUTH = JSON.parse(localStorage.getItem("hoshi-auth") || "null"); } catch (e) {}
+  if (!AUTH || typeof AUTH.token !== "string" || typeof AUTH.username !== "string") AUTH = null;
+  try { dirty = localStorage.getItem("hoshi-sync-dirty") === "1"; } catch (e) {}
+  function saveAuth() { try { if (AUTH) localStorage.setItem("hoshi-auth", JSON.stringify(AUTH)); else localStorage.removeItem("hoshi-auth"); } catch (e) {} }
+  function setDirty(on) { dirty = on; try { if (on) localStorage.setItem("hoshi-sync-dirty", "1"); else localStorage.removeItem("hoshi-sync-dirty"); } catch (e) {} }
+
+  function api(path, method, body) {
+    var headers = { "Accept": "application/json" };
+    if (body) headers["Content-Type"] = "application/json";
+    if (AUTH) headers.Authorization = "Bearer " + AUTH.token;
+    return fetch(STREAM_API_BASE + path, { method: method || "GET", headers: headers, body: body ? JSON.stringify(body) : undefined })
+      .then(function(r) {
+        return r.json().catch(function() { return {}; }).then(function(j) {
+          if (!r.ok) { var err = new Error(j.error || ("The server answered " + r.status + ".")); err.status = r.status; throw err; }
+          return j;
+        });
+      }, function() { throw new Error("Could not reach the server. Check your connection."); });
+  }
+
+  // The three things that sync. They are the same objects the rest of the page uses.
+  function collect() { return { prog: PROG, lib: LIB, read: RP }; }
+  function replace(target, source) {
+    Object.keys(target).forEach(function(k) { delete target[k]; });
+    Object.keys(source || {}).forEach(function(k) { target[k] = source[k]; });
+  }
+  // Progress entries carry a time stamp. The newer copy of each wins. An entry that exists
+  // only here is kept if it is new since the server's copy (or has no time stamp); otherwise
+  // it was removed on another device, so it goes. `joining` keeps everything from both sides.
+  function mergeStamped(local, server, serverAt, joining) {
+    var out = {};
+    Object.keys(server || {}).forEach(function(k) { out[k] = server[k]; });
+    Object.keys(local).forEach(function(k) {
+      var l = local[k], s = out[k], lts = (l && l.ts) || 0;
+      if (s) { if (lts > (s.ts || 0)) out[k] = l; }
+      else if (joining || !lts || lts > serverAt) out[k] = l;
+    });
+    return out;
+  }
+  // The library has no time stamps: the server's copy wins, except when joining.
+  function mergePlain(local, server, joining) {
+    if (!server) return local;
+    if (!joining) return server;
+    var out = {};
+    Object.keys(local).forEach(function(k) { out[k] = local[k]; });
+    Object.keys(server).forEach(function(k) { out[k] = server[k]; });
+    return out;
+  }
+
+  // Saving anywhere on the page marks the account as needing a sync.
+  var rawSaveProg = saveProg, rawSaveLib = saveLib, rawSaveRP = saveRP;
+  saveProg = function() { rawSaveProg(); changed(); };
+  saveLib = function() { rawSaveLib(); changed(); };
+  saveRP = function() { rawSaveRP(); changed(); };
+
+  // Uploads are spaced at least 90 seconds apart: progress is saved every few seconds while
+  // an episode plays, and the server's free storage allows a limited number of writes a day.
+  var pushTimer = 0, lastPush = 0;
+  function changed() {
+    setDirty(true);
+    if (!AUTH || pushTimer) return;
+    pushTimer = setTimeout(function() { pushTimer = 0; push(); }, Math.max(3000, 90000 - (Date.now() - lastPush)));
+  }
+  function push() {
+    if (!AUTH) return Promise.resolve();
+    lastPush = Date.now();
+    return api("/sync", "PUT", { data: collect() }).then(function() {
+      setDirty(false); status("Synced " + new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }));
+    }).catch(function(e) {
+      if (e.status === 401) return signedOut("Your login expired. Please log in again.");
+      status("Not synced yet: " + e.message);
+    });
+  }
+  // joining: first sync after logging in, or local changes that never reached the server.
+  function pull(joining) {
+    return api("/sync").then(function(res) {
+      var d = res.data || {}, at = Number(res.updatedAt) || 0, join = joining || !res.data;
+      replace(PROG, mergeStamped(PROG, d.prog, at, join));
+      replace(RP, mergeStamped(RP, d.read, at, join));
+      replace(LIB, mergePlain(LIB, d.lib, join));
+      rawSaveProg(); rawSaveLib(); rawSaveRP();
+      if (VIEW === "home") { drawCW(); drawCR(); }
+      if (VIEW === "library") drawLib();
+      status("Synced " + new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }));
+      if (join) return push();
+    }).catch(function(e) {
+      if (e.status === 401) return signedOut("Your login expired. Please log in again.");
+      status("Could not sync: " + e.message);
+    });
+  }
+  // Leaving the page with changes waiting: send them now if they are small enough to go
+  // out after the page has closed.
+  window.addEventListener("pagehide", function() {
+    if (!AUTH || !dirty) return;
+    try {
+      var body = JSON.stringify({ data: collect() });
+      if (body.length > 60000) return;
+      fetch(STREAM_API_BASE + "/sync", { method: "PUT", keepalive: true, headers: { "Content-Type": "application/json", "Authorization": "Bearer " + AUTH.token }, body: body });
+    } catch (e) {}
+  });
+
+  // ── The button and the dialog ──
+  var USER_ICON = '<svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.500 2 8 6"/></svg>';
+  var btn = mk("button", "acctbtn"); btn.type = "button";
+  var modal = mk("div", "acctmodal"); modal.hidden = true;
+  var box = mk("div", "acctbox"); box.setAttribute("role", "dialog"); box.setAttribute("aria-modal", "true"); box.setAttribute("aria-label", "Account");
+  modal.appendChild(box);
+  var statusText = "";
+  function status(text) { statusText = text; var el = box.querySelector(".acctstatus"); if (el) el.textContent = text; }
+  function drawButton() {
+    btn.classList.toggle("in", !!AUTH);
+    if (AUTH) { btn.textContent = AUTH.username.charAt(0).toUpperCase(); btn.title = "Signed in as " + AUTH.username; }
+    else { btn.innerHTML = USER_ICON; btn.title = "Log in or create an account"; }
+    btn.setAttribute("aria-label", btn.title);
+  }
+  function close() { modal.hidden = true; btn.focus(); }
+  function closeButton() { var x = mk("button", "acctx", "×"); x.type = "button"; x.setAttribute("aria-label", "Close"); x.onclick = close; return x; }
+  function signedOut(message) {
+    AUTH = null; saveAuth(); clearTimeout(pushTimer); pushTimer = 0;
+    drawButton();
+    if (!modal.hidden || message) { drawForm("login", message); }
+  }
+
+  function drawAccount() {
+    box.innerHTML = "";
+    box.appendChild(closeButton());
+    box.appendChild(mk("h3", "accttitle", "Your account"));
+    box.appendChild(mk("p", "acctline", "Signed in as " + AUTH.username + ". Continue watching, your library and your reading progress are kept on the server and follow you to any device you log in on."));
+    box.appendChild(mk("p", "acctstatus", statusText || "Not synced yet in this visit."));
+    var row = mk("div", "acctrow");
+    var sync = mk("button", "vbtn pri", "Sync now"); sync.type = "button";
+    sync.onclick = function() { status("Syncing…"); push().then(function() { return pull(false); }); };
+    var out = mk("button", "vbtn", "Log out"); out.type = "button";
+    out.onclick = function() {
+      var bye = function() { signedOut(); drawForm("login", "You are logged out. What you watched stays in this browser."); };
+      // Send anything waiting first, so logging out never loses the last few minutes.
+      (dirty ? push() : Promise.resolve()).then(function() { return AUTH ? api("/auth/logout", "POST").catch(function() {}) : null; }).then(bye);
+    };
+    row.appendChild(sync); row.appendChild(out); box.appendChild(row);
+  }
+
+  function drawForm(mode, message) {
+    var signup = mode === "signup";
+    box.innerHTML = "";
+    box.appendChild(closeButton());
+    box.appendChild(mk("h3", "accttitle", signup ? "Create an account" : "Log in"));
+    box.appendChild(mk("p", "acctline", signup
+      ? "Pick a username and a password. There is no email and no password reset, so keep the password somewhere safe."
+      : "Log in to keep Continue watching and your library across browsers and devices."));
+    var form = mk("form", "acctform"); form.noValidate = true;
+    function field(label, type, name, auto) {
+      var wrap = mk("label", "acctfield"); wrap.appendChild(document.createTextNode(label));
+      var input = mk("input"); input.type = type; input.name = name; input.autocomplete = auto; input.required = true;
+      input.autocapitalize = "none"; input.spellcheck = false;
+      wrap.appendChild(input); form.appendChild(wrap); return input;
+    }
+    var user = field("Username", "text", "username", "username");
+    var pass = field("Password", "password", "password", signup ? "new-password" : "current-password");
+    var code = null;
+    if (signup) { code = field("Invite code (only if you were given one)", "text", "code", "off"); code.required = false; }
+    var note = mk("p", "acctnote", message || ""); note.setAttribute("role", "alert");
+    form.appendChild(note);
+    var go = mk("button", "vbtn pri", signup ? "Create account" : "Log in"); go.type = "submit";
+    form.appendChild(go);
+    form.onsubmit = function(e) {
+      e.preventDefault();
+      var name = user.value.trim(), pw = pass.value;
+      if (!/^[A-Za-z0-9_]{3,20}$/.test(name)) { note.textContent = "Usernames are 3 to 20 letters, numbers or underscores."; user.focus(); return; }
+      if (pw.length < 8) { note.textContent = "Passwords need at least 8 characters."; pass.focus(); return; }
+      go.disabled = true; note.textContent = signup ? "Creating your account…" : "Logging in…";
+      var body = { username: name, password: pw };
+      if (code && code.value.trim()) body.code = code.value.trim();
+      api(signup ? "/auth/signup" : "/auth/login", "POST", body).then(function(res) {
+        AUTH = { token: res.token, username: res.username }; saveAuth();
+        drawButton(); statusText = "Syncing…"; drawAccount();
+        return pull(true);
+      }).catch(function(err) { go.disabled = false; note.textContent = err.message; });
+    };
+    box.appendChild(form);
+    var swap = mk("button", "acctswap", signup ? "I already have an account" : "Create an account"); swap.type = "button";
+    swap.onclick = function() { drawForm(signup ? "login" : "signup"); };
+    box.appendChild(swap);
+    if (!modal.hidden) user.focus();
+  }
+
+  btn.onclick = function() {
+    if (AUTH) drawAccount(); else drawForm("login");
+    modal.hidden = false;
+    var first = box.querySelector("input, .vbtn"); if (first) first.focus();
+  };
+  modal.addEventListener("mousedown", function(e) { if (e.target === modal) close(); });
+  modal.addEventListener("keydown", function(e) { if (e.key === "Escape") { e.stopPropagation(); close(); } });
+  drawButton();
+  document.body.appendChild(btn); document.body.appendChild(modal);
+
+  // Already logged in from an earlier visit: fetch the server's copy now.
+  if (AUTH) pull(dirty);
+})();
 
 initDiscover();
 initMangaSearch();
