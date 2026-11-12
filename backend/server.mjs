@@ -418,16 +418,16 @@ async function media(req,res,url) {
   // Errors carry the CORS headers too; without them hls.js only sees an anonymous network failure.
   const fail=(status,body)=>json(res,status,body,cors(req));
   if (req.method==='OPTIONS') { res.writeHead(204,{...cors(req),'Access-Control-Max-Age':'86400'}); return res.end(); }
-  if (!signingReady()) return fail(404,{error:'Relay disabled'});
+  if (!signingReady()) { console.warn('Hoshi relay: REJECTED, relay disabled (need HOSHI_RELAY_ENABLED=true, RELAY_SIGNING_KEY of 32+ chars, RELAY_PUBLIC_BASE as an https URL with no path query)'); return fail(404,{error:'Relay disabled'}); }
   if (req.method!=='GET') return fail(405,{error:'Method not allowed'});
   const kind=PATH_KIND[url.pathname];
-  if (!kind) return fail(404,{error:'Unknown relay path. Links issued before V3.3 are no longer valid; resolve the episode again.'});
+  if (!kind) { console.warn('Hoshi relay: REJECTED, unknown path '+url.pathname); return fail(404,{error:'Unknown relay path. Links issued before V3.3 are no longer valid; resolve the episode again.'}); }
   const target=url.searchParams.get('u') || '';
   const exp=url.searchParams.get('exp') || '';
   const sig=url.searchParams.get('sig') || '';
   const referer=url.searchParams.get('r') || '';
-  if (referer && referer !== 'https://megaplay.buzz/') return fail(403,{error:'Invalid media referer'});
-  if (!permitted(target) || !validSignature(kind,target,exp,sig,referer)) return fail(403,{error:'Invalid or expired media link'});
+  if (referer && referer !== 'https://megaplay.buzz/') { console.warn('Hoshi relay: REJECTED, invalid referer'); return fail(403,{error:'Invalid media referer'}); }
+  if (!permitted(target) || !validSignature(kind,target,exp,sig,referer)) { console.warn('Hoshi relay: REJECTED, invalid or expired link ('+kind+'). If this repeats, RELAY_SIGNING_KEY changed or the page is using an old link.'); return fail(403,{error:'Invalid or expired media link'}); }
   const range=kind==='hls' ? undefined : req.headers.range;
   if (range && !/^bytes=\d+-\d*$/.test(range)) return fail(400,{error:'Invalid byte range'});
   const gone=()=>res.destroyed; // the viewer left (seek, tab closed): stop waiting for the host
