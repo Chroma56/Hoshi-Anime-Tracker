@@ -423,6 +423,7 @@ async function media(req,res,url) {
   const range=kind==='hls' ? undefined : req.headers.range;
   if (range && !/^bytes=\d+-\d*$/.test(range)) return fail(400,{error:'Invalid byte range'});
   const gone=()=>res.destroyed; // the viewer left (seek, tab closed): stop waiting for the host
+  if (process.env.RELAY_DEBUG === 'true') console.log('Hoshi relay:', kind, new URL(target).hostname);
   try {
     // Playlists: cached and de-duplicated; still re-signed with a fresh expiry every time.
     if (kind==='hls') {
