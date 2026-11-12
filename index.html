@@ -306,6 +306,9 @@ html{overflow-x:clip}
 .vplayer .vplh{order:2;border-bottom:0;border-top:1px solid var(--line)}
 .vplayer .hdp-panel{order:3}
 .hoshi-match-status{display:none!important}
+/* The settings panel under the video is retired: with the direct player its options open inside
+   the picture, and with an embed there is nothing for them to control. */
+.vplayer>.hdp-panel{display:none!important}
 /* Watch layout: while an episode plays, the video leads, episodes sit in a side panel, details go below */
 .v.watching{max-width:none;display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:0 22px;align-items:start;grid-template-areas:"back back" "player eps" "head eps"}
 .v.watching>.vbackdrop{display:none}
@@ -1640,7 +1643,7 @@ function detail(a, wantEp) {
     if (!u || curIdx < 0) { message("No playable direct stream. Use an available embedded source."); return; }
     preferEmbed = true;
     ++streamLookupToken;
-    destroyDirect(); directMode = false; directPanel.hidden = true; sourceSwitch.hidden = true;
+    destroyDirect(); directMode = false; directPanel.hidden = true; sourceSwitch.hidden = true; directButton.hidden = true;
     frame.innerHTML = "";
     var f = document.createElement("iframe");
     f.src = u; f.title = "Episode " + epNum(currentEpisode, curIdx);
@@ -1657,7 +1660,7 @@ function detail(a, wantEp) {
       message("That is not a direct video URL. Use an HTTPS .mp4 or .m3u8 link, not a Hoshi episode page or embed link.");
       return;
     }
-    destroyDirect(); directMode = true; currentDirectUrl = url; directPanel.hidden = true; sourceSwitch.hidden = false;
+    destroyDirect(); directMode = true; currentDirectUrl = url; directPanel.hidden = true; sourceSwitch.hidden = false; directButton.hidden = false;
     sourceState.textContent = "Direct stream";
     frame.innerHTML = "";
     // Everything below belongs to this one episode; destroyDirect() runs the cleanups.
@@ -2209,7 +2212,7 @@ function detail(a, wantEp) {
     var ep = episodes[i], u = streamFor(ep, lang), direct = episodeDirectUrl(ep, lang);
     if (!u && !direct) { alert("No " + lang.toUpperCase() + " stream available for this episode."); return; }
     if (curIdx !== i) preferEmbed = false;
-    destroyDirect(); directMode = false; directPanel.hidden = true; sourceSwitch.hidden = true; currentEpisode = ep;
+    destroyDirect(); directMode = false; directPanel.hidden = true; sourceSwitch.hidden = true; directButton.hidden = true; currentEpisode = ep;
     curIdx = i;
     var n = epNum(ep, i);
     pl.hidden = false;
