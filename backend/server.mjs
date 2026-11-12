@@ -200,13 +200,9 @@ setInterval(() => {
   for (const [key, g] of gates) if (!g.active && !g.waiters.length && g.nextSlot < now && g.cooldownUntil < now) gates.delete(key);
 }, 60000).unref();
 
-// Subtitles get a lane of their own ("domain#sub"), one request at a time, so a pile of
-// subtitle files can never sit in front of the playlist or the video segments.
-const SUB_LANE = '#sub';
 async function withGate(key, aborted, fn) {
   const g = gateFor(key);
-  const limit = key.endsWith(SUB_LANE) ? 1 : UPSTREAM_CONCURRENCY;
-  while (g.active >= limit) await new Promise(r => g.waiters.push(r));
+  while (g.active >= UPSTREAM_CONCURRENCY) await new Promise(r => g.waiters.push(r));
   g.active++;
   try {
     const now = Date.now();
@@ -232,9 +228,8 @@ function parseRetryAfter(value) {
 }
 
 /** Drop-in replacement for upstream(). `aborted` lets a viewer who left stop waiting. */
-async function upstreamPolite(url, range, referer = '', aborted = () => false, lane = '') {
-  const domain = gateKey(new URL(url).hostname);
-  const key = domain + lane;
+async function upstreamPolite(url, range, referer = '', aborted = () => false) {
+  const key = gateKey(new URL(url).hostname);
   for (let attempt = 0; ; attempt++) {
     let source;
     try {
@@ -249,11 +244,9 @@ async function upstreamPolite(url, range, referer = '', aborted = () => false, l
     source.resume();
     const retryAfter = parseRetryAfter(source.headers['retry-after']);
     const wait = Math.min(Math.max(retryAfter ?? 0, 400 * 2 ** attempt), 8000) + Math.random() * 250;
-    // Printed only when the host pushes back. A few of these means you are near its limit;
-    // none means the throttle settings are comfortable.
-    console.warn('Hoshi relay: HTTP '+source.statusCode+' from '+domain+(lane ? ' (subtitles)' : '')+', retry '+(attempt+1)+' of '+(UPSTREAM_ATTEMPTS-1)+' in '+Math.round(wait)+' ms');
-    // pause the whole domain: the video lane and the subtitle lane both
-    for (const k of [domain, domain + SUB_LANE]) { const g = gateFor(k); g.cooldownUntil = Math.max(g.cooldownUntil, Date.now() + wait); }
+    console.warn('Hoshi relay: HTTP '+source.statusCode+' from '+new URL(url).hostname+', retry '+(attempt+1)+'/'+(UPSTREAM_ATTEMPTS-1)+' in '+Math.round(wait)+'ms'+(retryAfter!=null ? ' (host asked for '+Math.round(retryAfter/1000)+'s)' : ''));
+    const g = gateFor(key);
+    g.cooldownUntil = Math.max(g.cooldownUntil, Date.now() + wait); // pause the whole domain
     await sleep(wait);
   }
 }
@@ -316,7 +309,7 @@ function smallPut(key, entry) {
     small.delete(k); smallBytes -= v.body.length;
   }
 }
-async function getSmall(url, referer, lane = '') {
+async function getSmall(url, referer) {
   const key = referer + '|' + url;
   const hit = small.get(key);
   if (hit && hit.expires > Date.now()) return hit;
@@ -324,8 +317,12 @@ async function getSmall(url, referer, lane = '') {
   const fallback = () => (hit && hit.staleUntil > Date.now() ? hit : null);
   const p = (async () => {
     try {
-      const src = await upstreamPolite(url, undefined, referer, undefined, lane);
-      if (src.statusCode !== 200) { src.resume(); return fallback(); }
+      const src = await upstreamPolite(url, undefined, referer);
+      if (src.statusCode !== 200) {
+        src.resume();
+        console.warn('Hoshi relay: subtitle/thumbnail HTTP '+src.statusCode+' from '+new URL(url).hostname+(fallback() ? ' (served cached copy)' : ''));
+        return fallback();
+      }
       const body = await readBytes(src, SMALL_MAX);
       const entry = {
         body,
@@ -335,7 +332,10 @@ async function getSmall(url, referer, lane = '') {
       };
       smallPut(key, entry);
       return entry;
-    } catch { return fallback(); }
+    } catch (e) {
+      console.warn('Hoshi relay: subtitle/thumbnail failed:', String(e?.message || e).slice(0,100));
+      return fallback();
+    }
     finally { smallFlight.delete(key); }
   })();
   smallFlight.set(key, p);
@@ -448,7 +448,7 @@ async function media(req,res,url) {
     }
     // Subtitles and thumbnails: cached, and a failure must never break playback.
     if (!range && (kind==='sub' || (kind==='file' && SMALL_FILE.test(new URL(target).pathname)))) {
-      const hit=await getSmall(target,referer,kind==='sub' ? SUB_LANE : '');
+      const hit=await getSmall(target,referer);
       if (hit) {
         res.writeHead(200,{...cors(req),'Content-Type':hit.type,'Content-Length':hit.body.length,'Cache-Control':'private, max-age=600'});
         return res.end(hit.body);
