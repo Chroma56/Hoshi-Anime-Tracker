@@ -9,7 +9,7 @@
  * API calls, images and video all go straight to the network as before.
  */
 const CACHE = 'hoshi-shell-v1';
-const SHELL = ['./', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png'];
+const SHELL = ['./', 'manifest.webmanifest', 'image-1794503482774.png', 'image-1794503488513.png'];
 
 self.addEventListener('install', event => {
   event.waitUntil(
