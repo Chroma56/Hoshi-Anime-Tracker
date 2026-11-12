@@ -494,11 +494,11 @@ async function resolve(series,episode,lang) {
   if (!raw) raw=await resolvePlayzStyle(series,episode,lang);
   if (!raw) raw=await providerEntry(series,episode,lang);
   const format=['hls','mp4'].includes(raw?.format) ? raw.format : raw?.type;
-  if (!['hls','mp4'].includes(format)) return {type:'embed',available:false,reason:'No authorised direct stream registered'};
+  if (!['hls','mp4'].includes(format)) { console.warn('Hoshi resolve: UNAVAILABLE, resolver returned no stream for '+key); return {type:'embed',available:false,reason:'No authorised direct stream registered'}; }
   const url=hostAllowed(raw.url,format==='hls' ? /\.m3u8$/i : /\.mp4$/i);
-  if(!url) return {type:'embed',available:false,reason:'Stream host is not allowlisted'};
+  if(!url) { let h=''; try { h=new URL(raw.url).hostname; } catch {} console.warn('Hoshi resolve: UNAVAILABLE, stream host not on MEDIA_HOSTS: '+h+' (add it, or *.<its domain>, to MEDIA_HOSTS) for '+key); return {type:'embed',available:false,reason:'Stream host is not allowlisted'}; }
   const referer = raw.referer === 'https://megaplay.buzz/' ? raw.referer : '';
-  if (referer && !signingReady()) return {type:'embed',available:false,reason:'Signed relay is required for this provider'};
+  if (referer && !signingReady()) { console.warn('Hoshi resolve: UNAVAILABLE, signed relay not ready for '+key); return {type:'embed',available:false,reason:'Signed relay is required for this provider'}; }
   const info=format==='hls' ? await masterInfo(url,referer) : {qualities:[],subtitles:[]};
   const subs=subtitles(raw.subtitles).concat(info.subtitles).filter((v,i,a)=>a.findIndex(x=>x.url===v.url)===i).slice(0,20);
   const result={type:'direct',available:true,format,url,subtitles:subs,qualities:info.qualities};
@@ -524,7 +524,11 @@ async function resolveCached(series,episode,lang) {
   if (resolveFlight.has(key)) return resolveFlight.get(key);
   const p=(async()=>{
     try {
-      const value=await resolve(series,episode,lang);
+      const started=Date.now();
+      let value=await resolve(series,episode,lang);
+      // a provider hiccup often clears in a moment: one more try before telling the page there is no direct stream
+      if (value?.available===false && /No authorised direct stream/.test(value.reason || '')) { await sleep(1500); value=await resolve(series,episode,lang); }
+      console.log('Hoshi resolve: '+key+' -> '+(value?.available ? 'direct' : 'unavailable')+' in '+(Date.now()-started)+'ms');
       resolved.set(key,{value,expires:Date.now()+(value?.available ? RESOLVE_TTL_MS : RESOLVE_FAIL_TTL_MS)});
       return value;
     } catch(error) {
