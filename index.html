@@ -788,7 +788,7 @@ function heroSlide(a, i) {
 //    accepts a genuinely matching title. Gives bannerImage + a full-size cover + MAL id.
 // 2) Kitsu: wide cover art via the MAL id, used when AniList has no banner (common for new shows).
 var HC = {}, HQ = Promise.resolve();
-var HERO_ART_F = 'idMal title{romaji english native} synonyms bannerImage coverImage{extraLarge} status season seasonYear nextAiringEpisode{episode airingAt}';
+var HERO_ART_F = 'id idMal title{romaji english native} synonyms bannerImage coverImage{extraLarge} status season seasonYear nextAiringEpisode{episode airingAt}';
 function heroMatch(want, x) {
   var names = [x.title.romaji, x.title.english, x.title.native].concat(x.synonyms || []).map(norm).filter(Boolean);
   return names.some(function(n) {
@@ -836,6 +836,7 @@ function heroArt(a) {
     [raw.banner, raw.bannerImage, raw.background, raw.cover_image].forEach(function(u) { if (typeof u === "string" && /^https?:/.test(u)) out.banners.push(u); });
     if (!m) return out;
     out.cover = (m.coverImage && m.coverImage.extraLarge) || "";
+    out.aniId = m.id || null;
     out.info = { status: m.status || "", season: m.season || "", year: m.seasonYear || "", next: m.nextAiringEpisode || null };
     if (m.bannerImage) out.banners.unshift(m.bannerImage);
     // Kitsu art is usually larger than AniList banners, so try it first
@@ -1578,22 +1579,34 @@ function detail(a, wantEp) {
     // The backend finds streams by AniList id ("al123"). Titles from the home lists carry their
     // own numeric id instead, so use their AniList id whenever one is known.
     var aniListId = String(a.aniId || (a.raw && (a.raw.ani_id || a.raw.anilist_id)) || "");
-    var seriesId = /^[1-9]\d{0,9}$/.test(aniListId) ? "al" + aniListId : String(a.id || "").replace(/[^A-Za-z0-9_-]/g, "");
     var episodeNumber = String(epNum(ep, index));
-    if (!seriesId || !/^\d+(?:\.\d+)?$/.test(episodeNumber)) return Promise.resolve(null);
-    var q = "?series=" + encodeURIComponent(seriesId) + "&episode=" + encodeURIComponent(episodeNumber) + "&lang=" + encodeURIComponent(selectedLang);
-    return fetch(STREAM_API_BASE + "/resolve" + q, {
-      headers: { "Accept": "application/json" },
-      // The embed keeps playing while this waits, so a slow answer costs nothing.
-      signal: typeof AbortSignal !== "undefined" && AbortSignal.timeout ? AbortSignal.timeout(30000) : undefined
-    })
-      .then(function(r) { if (!r.ok) throw Error("Stream API HTTP " + r.status); return r.json(); })
-      .then(function(v) {
-        if (!v || v.type !== "direct" || v.available !== true) return null;
-        var videoUrl = explicitVideoUrl({ type: v.format, url: v.url });
-        if (!videoUrl) return null;
-        return { url: videoUrl, subtitles: Array.isArray(v.subtitles) ? v.subtitles : [], intro: v.intro || null, outro: v.outro || null };
-      }).catch(function(err) { console.warn("Hoshi Stream API unavailable; using embed:", err.message || err); return null; });
+    if (!/^\d+(?:\.\d+)?$/.test(episodeNumber)) return Promise.resolve(null);
+    // No AniList id on this title (the home lists don't send one): ask AniList, by MAL id when
+    // there is one, otherwise by title, accepting only a title that genuinely matches. The
+    // answer is remembered on the title, so each show is looked up once.
+    var known = /^[1-9]\d{0,9}$/.test(aniListId) ? Promise.resolve(aniListId)
+      : heroArt(a).then(function(x) {
+          var found = x && /^[1-9]\d{0,9}$/.test(String(x.aniId || "")) ? String(x.aniId) : "";
+          if (found) a.aniId = Number(found);
+          return found;
+        }).catch(function() { return ""; });
+    return known.then(function(id) {
+      var seriesId = id ? "al" + id : String(a.id || "").replace(/[^A-Za-z0-9_-]/g, "");
+      if (!seriesId) return null;
+      var q = "?series=" + encodeURIComponent(seriesId) + "&episode=" + encodeURIComponent(episodeNumber) + "&lang=" + encodeURIComponent(selectedLang);
+      return fetch(STREAM_API_BASE + "/resolve" + q, {
+        headers: { "Accept": "application/json" },
+        // The embed keeps playing while this waits, so a slow answer costs nothing.
+        signal: typeof AbortSignal !== "undefined" && AbortSignal.timeout ? AbortSignal.timeout(30000) : undefined
+      })
+        .then(function(r) { if (!r.ok) throw Error("Stream API HTTP " + r.status); return r.json(); })
+        .then(function(v) {
+          if (!v || v.type !== "direct" || v.available !== true) return null;
+          var videoUrl = explicitVideoUrl({ type: v.format, url: v.url });
+          if (!videoUrl) return null;
+          return { url: videoUrl, subtitles: Array.isArray(v.subtitles) ? v.subtitles : [], intro: v.intro || null, outro: v.outro || null };
+        });
+    }).catch(function(err) { console.warn("Hoshi Stream API unavailable; using embed:", err.message || err); return null; });
   }
   // Stage 5: Hoshi -> Cloudflare /match -> Render -> Anikoto.
   // Episode metadata ONLY: this does not supply a video URL or alter playback.
