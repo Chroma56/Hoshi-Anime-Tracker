@@ -1314,6 +1314,8 @@ function detail(a, wantEp) {
   directPanel.appendChild(settings);
   var playerStatus = mk("p", "hdp-status", "Embedded player active. Custom subtitle controls apply only to Direct Player."); directPanel.appendChild(playerStatus);
   var sourceSwitch = mk("button", "vbtn sm", "Switch to embed"); sourceSwitch.type = "button"; sourceSwitch.hidden = true; plh.insertBefore(sourceSwitch, close);
+  var retryDirect = mk("button", "vbtn sm", "Try direct player"); retryDirect.type = "button"; retryDirect.hidden = true;
+  retryDirect.title = "Look for the direct stream again"; plh.insertBefore(retryDirect, close);
   pl.appendChild(plh); pl.appendChild(frame); pl.appendChild(directPanel); root.appendChild(pl);
 
   var eps = mk("section", "veps"), bar = mk("div", "vbar"), h2 = mk("h2", "", "Episodes"), cnt = mk("i", "", "");
@@ -1645,6 +1647,7 @@ function detail(a, wantEp) {
     f.allow = "autoplay; encrypted-media; picture-in-picture; fullscreen"; f.allowFullscreen = true;
     frame.appendChild(f);
     sourceState.textContent = "Embed · Direct failed";
+    retryDirect.hidden = false;
     message("Direct stream unavailable. Switched to working embedded player.");
   }
   function loadDirect(url) {
@@ -2237,14 +2240,28 @@ function detail(a, wantEp) {
     }
     // Look for a permitted direct stream, without blocking or breaking iframe playback.
     var lookupId = ++streamLookupToken;
-    if (!direct && !preferEmbed) {
+    // The button to ask again is offered whenever the embed is what's playing by choice or by failure.
+    retryDirect.hidden = !preferEmbed;
+    // A first answer of "nothing" is often temporary: the backend was asleep (the free host
+    // sleeps after 15 quiet minutes and takes up to a minute to wake) or the provider hiccuped.
+    // So ask up to three times before settling on the embed.
+    function findDirect(attempt) {
+      if (attempt > 1) sourceState.textContent = "Embed · Still looking for the direct stream (" + attempt + " of 3)…";
       lookUpHoshiStream(ep, i, lang).then(function(found) {
         if (lookupId !== streamLookupToken || curIdx !== i || preferEmbed || directMode) return;
         if (!found) {
+          if (attempt < 3) {
+            setTimeout(function() {
+              if (lookupId === streamLookupToken && curIdx === i && !preferEmbed && !directMode) findDirect(attempt + 1);
+            }, 6000);
+            return;
+          }
           sourceState.textContent = "Embed · No direct stream";
+          retryDirect.hidden = false;
           return;
         }
         sourceState.textContent = "Direct source found";
+        retryDirect.hidden = true;
         // Combine subtitle metadata without mutating the source episode.
         currentEpisode = Object.assign({}, ep, { subtitles: found.subtitles });
         if (found.intro) currentEpisode.intro = found.intro;
@@ -2254,6 +2271,14 @@ function detail(a, wantEp) {
         loadDirect(found.url);
       });
     }
+    if (!direct && !preferEmbed) findDirect(1);
+    retryDirect.onclick = function() {
+      if (curIdx !== i) return;
+      preferEmbed = false; retryDirect.hidden = true;
+      sourceState.textContent = "Checking direct source…";
+      lookupId = ++streamLookupToken;
+      findDirect(1);
+    };
     var p = PROG[a.id] || (PROG[a.id] = { s: {} });
     p.l = n; p.s[n] = 1; p.ts = Date.now(); p.n = episodes.length; p.a = snap(a);
     var ks = Object.keys(PROG);
@@ -3670,6 +3695,25 @@ new MutationObserver(function(muts) {
     ["src", "source", "lang", "sub"].forEach(function(k) { if (typeof a[k] === "string") out[k] = a[k].slice(0, 80); });
     if (Array.isArray(a.genres)) out.genres = a.genres.filter(function(g) { return typeof g === "string"; }).slice(0, 8).map(function(g) { return g.slice(0, 30); });
     if (typeof a.description === "string") out.description = a.description.slice(0, 1500);
+    // The detail page reads episode counts, dates and studios from "raw". Keep its plain
+    // values (text and numbers only), or a title opened from a profile would show no episodes.
+    if (a.raw && typeof a.raw === "object" && !Array.isArray(a.raw)) {
+      var raw = {}, count = 0;
+      Object.keys(a.raw).forEach(function(k) {
+        var v = a.raw[k];
+        if (count >= 40 || !/^[A-Za-z_]{1,30}$/.test(k)) return;
+        if (typeof v === "string") { raw[k] = v.slice(0, 400); count++; }
+        else if (typeof v === "number" && isFinite(v)) { raw[k] = v; count++; }
+        else if (k === "terms_by_type" && v && typeof v === "object" && !Array.isArray(v)) {
+          var terms = {};
+          ["genre", "studios", "producers", "type"].forEach(function(t) {
+            if (Array.isArray(v[t])) terms[t] = v[t].filter(function(x) { return typeof x === "string"; }).slice(0, 12).map(function(x) { return x.slice(0, 60); });
+          });
+          raw[k] = terms; count++;
+        }
+      });
+      out.raw = raw;
+    }
     return out;
   }
   function cleanTitles(list, max) {
@@ -3964,6 +4008,17 @@ new MutationObserver(function(muts) {
   page.addEventListener("click", function(e) { if (e.target.closest && e.target.closest("a.card")) setTimeout(closePage, 0); });
   drawOpen();
   document.body.appendChild(open); document.body.appendChild(page); document.body.appendChild(filePick);
+})();
+
+// Wake the stream backend as soon as the site opens, and keep it awake while the tab is in
+// use. Its free host sleeps after 15 quiet minutes; a sleeping backend is the usual reason
+// the direct player is missing on the first episode of a visit. Nothing is read back.
+(function() {
+  var BACKEND_HEALTH = "https://hoshi-stream-backend.onrender.com/health";
+  function wake() { if (!document.hidden) { try { fetch(BACKEND_HEALTH, { mode: "no-cors", cache: "no-store" }).catch(function() {}); } catch (e) {} } }
+  wake();
+  setInterval(wake, 9 * 60 * 1000);
+  document.addEventListener("visibilitychange", wake);
 })();
 
 initDiscover();
