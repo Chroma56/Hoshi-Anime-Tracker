@@ -332,30 +332,79 @@ html{overflow-x:clip}
 .v.watching>.vhead{order:3}
 .v.watching .hdp-stage,.v.watching .hdp-video{max-height:76vh}
 }
-/* Account button and dialog */
-.acctbtn{position:fixed;top:calc(12px + env(safe-area-inset-top,0px));right:16px;z-index:640;width:40px;height:40px;border-radius:50%;border:1px solid rgba(255,255,255,.14);background:rgba(16,16,18,.72);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);color:var(--text);display:grid;place-items:center;cursor:pointer;font:800 15px "Bricolage Grotesque",sans-serif;box-shadow:0 8px 24px rgba(0,0,0,.4)}
-.acctbtn:hover{background:rgba(255,255,255,.16)}
-.acctbtn.in{background:var(--text);color:#0b0b0c;border-color:var(--text)}
-.acctbtn svg{width:19px;height:19px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
-.acctmodal{position:fixed;inset:0;z-index:1200;background:rgba(6,6,9,.78);display:flex;align-items:center;justify-content:center;padding:18px}
-.acctmodal[hidden]{display:none}
-.acctbox{position:relative;width:min(400px,100%);max-height:calc(100vh - 36px);overflow:auto;box-sizing:border-box;background:var(--panel);border:1px solid #303038;border-radius:18px;padding:24px 22px 20px;box-shadow:0 24px 70px rgba(0,0,0,.6)}
-.acctx{position:absolute;top:12px;right:12px;width:32px;height:32px;border-radius:9px;border:1px solid transparent;background:transparent;color:var(--mute);font-size:20px;line-height:1;cursor:pointer}
-.acctx:hover{background:var(--line);color:var(--text)}
-.accttitle{font:800 22px "Bricolage Grotesque",sans-serif;margin:0 0 8px}
-.acctline{color:var(--mute);font-size:13.5px;line-height:1.5;margin:0 0 16px}
-.acctform{display:grid;gap:12px}
-.acctfield{display:grid;gap:5px;font-size:12px;font-weight:700;color:#c9c9d0}
-.acctfield input{background:#19191e;border:1px solid #3b3b42;border-radius:10px;color:var(--text);padding:11px 12px;font:inherit;font-size:15px;font-weight:400}
-.acctfield input:focus{outline:2px solid var(--accent);outline-offset:1px}
-.acctnote{margin:0;min-height:18px;font-size:13px;color:#ffc857}
-.acctnote:empty{display:none}
-.acctform .vbtn{width:100%;padding:12px}
-.acctswap{display:block;margin:14px auto 0;background:none;border:0;color:var(--text);font:inherit;font-size:13px;font-weight:700;cursor:pointer;text-decoration:underline;text-underline-offset:3px}
-.acctstatus{font-size:12.5px;color:#a2e4b4;margin:0 0 16px}
-.acctrow{display:flex;gap:10px;flex-wrap:wrap}
-.acctrow .vbtn{flex:1}
-@media(max-width:640px){.acctbtn{right:10px;width:36px;height:36px}}
+/* Profiles: the button, the page and its dialogs */
+.pfbtn{position:fixed;top:calc(12px + env(safe-area-inset-top,0px));right:16px;z-index:640;width:40px;height:40px;border-radius:50%;border:1px solid rgba(255,255,255,.14);background:rgba(16,16,18,.72);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);color:var(--text);display:grid;place-items:center;cursor:pointer;font:800 15px "Bricolage Grotesque",sans-serif;box-shadow:0 8px 24px rgba(0,0,0,.4);overflow:hidden;padding:0}
+.pfbtn:hover{background:rgba(255,255,255,.16)}
+.pfbtn svg{width:19px;height:19px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.pfbtn img{width:100%;height:100%;object-fit:cover;display:block}
+.pfpage{position:fixed;inset:0;z-index:1150;background:var(--bg);overflow-y:auto;overscroll-behavior:contain}
+.pfpage[hidden]{display:none}
+.pfinner{max-width:1200px;margin:0 auto;padding:28px var(--mpad) 120px}
+.pfhead{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;margin-bottom:22px}
+.pfhead h2{margin:0 0 4px;font-size:30px;display:flex;align-items:center;gap:10px}
+.pfhead h2::before{content:"";width:5px;height:26px;border-radius:3px;background:var(--text);flex:none}
+.pfhead .sub{margin:0 0 0 15px}
+.pfx{width:36px;height:36px;border-radius:10px;border:1px solid var(--line);background:transparent;color:var(--mute);font-size:21px;line-height:1;cursor:pointer;flex:none}
+.pfx:hover{background:var(--line);color:var(--text)}
+.pfcard{display:flex;gap:22px;align-items:flex-start;padding:22px;border:1px solid var(--line);border-radius:16px;background:var(--panel);margin-bottom:14px}
+.pfcard.pfme{background:radial-gradient(700px 240px at 10% -30%,rgba(116,191,255,.13),transparent 70%),var(--panel);padding:26px}
+.pfava{width:64px;height:64px;border-radius:14px;flex:none;background:#24242a;border:1px solid #34343b;display:grid;place-items:center;font:800 26px "Bricolage Grotesque",sans-serif;color:#e6e6ea;overflow:hidden}
+.pfava.lg{width:100px;height:100px;border-radius:18px;font-size:40px}
+.pfava img{width:100%;height:100%;object-fit:cover;display:block}
+.pfbody{flex:1;min-width:0}
+.pfkick{font-size:11px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:var(--mute)}
+.pfname{font:800 28px/1.1 "Bricolage Grotesque",sans-serif;margin:4px 0 6px;overflow-wrap:anywhere}
+.pfname.sm{font-size:20px;margin-top:0}
+.pfabout{color:var(--mute);margin:0 0 12px;font-size:14px;line-height:1.5;overflow-wrap:anywhere}
+.pfabout:empty{display:none}
+.pfstats{display:flex;flex-wrap:wrap;gap:6px 22px;color:var(--mute);font-size:13px;margin-bottom:16px}
+.pfstats b{color:var(--text);font:800 17px "Bricolage Grotesque",sans-serif;margin-right:2px}
+.pfacts{display:flex;gap:8px;flex-wrap:wrap}
+.pfsec{font:800 18px "Bricolage Grotesque",sans-serif;margin:28px 0 12px}
+.pfsec i{font-style:normal;color:var(--mute);font-weight:500}
+.pfsub{font-size:13px;color:var(--mute);margin:14px 0 8px;font-weight:700}
+.pfrow{margin-bottom:8px}
+.pflists{margin:-4px 0 18px;padding:0 4px}
+.pflists[hidden]{display:none}
+.pfempty{text-align:center;padding:44px 20px;border:1px dashed var(--line);border-radius:16px;color:var(--mute)}
+.pfempty b{display:block;color:var(--text);font:800 17px "Bricolage Grotesque",sans-serif;margin-bottom:6px}
+.pfempty p{margin:0 auto;max-width:440px;font-size:13.500px;line-height:1.5}
+.pfnote{position:fixed;left:50%;bottom:calc(92px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:5;max-width:min(520px,calc(100% - 28px));background:#f2f2f3;color:#0b0b0c;border-radius:12px;padding:10px 16px;font-size:13.500px;font-weight:600;box-shadow:0 14px 40px rgba(0,0,0,.55)}
+.pfnote[hidden]{display:none}
+.pfveil{position:fixed;inset:0;z-index:10;background:rgba(6,6,9,.74);display:flex;align-items:center;justify-content:center;padding:16px}
+.pfbox{position:relative;width:min(560px,100%);max-height:calc(100vh - 32px);overflow-x:hidden;overflow-y:auto;scrollbar-width:thin;box-sizing:border-box;background:#17171b;border:1px solid #303038;border-radius:16px;padding:22px;box-shadow:0 24px 70px rgba(0,0,0,.65)}
+.pfbox.sm{width:min(440px,100%)}
+.pfbox>.pfx{position:absolute;top:12px;right:12px;border-color:transparent}
+.pfboxt{font:800 19px "Bricolage Grotesque",sans-serif;margin:0 40px 16px 0;overflow-wrap:anywhere}
+.pfedit{display:flex;gap:20px;align-items:flex-start;margin-bottom:18px}
+.pfpic{display:grid;gap:6px;justify-items:center;flex:none}
+.pflink{background:none;border:0;color:var(--text);font:inherit;font-size:12.500px;font-weight:700;cursor:pointer;padding:2px 4px;border-radius:6px}
+.pflink:hover{background:var(--line)}
+.pflink[hidden]{display:none}
+.pffields{flex:1;min-width:0;display:grid;gap:12px}
+.pffield{display:grid;gap:5px;font-size:12px;font-weight:700;color:#c9c9d0}
+.pffield input{background:#101013;border:1px solid #3b3b42;border-radius:9px;color:var(--text);padding:10px 12px;font:inherit;font-size:14.500px;font-weight:400;min-width:0}
+.pffield input:focus{outline:2px solid var(--accent);outline-offset:1px}
+.pffavh{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;font-size:14px}
+.pffavs{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:6px}
+.pffavs .sub{margin:0}
+.pfchip{display:inline-flex;align-items:center;gap:6px;background:var(--line);border-radius:8px;padding:5px 6px 5px 10px;font-size:12.500px;max-width:100%}
+.pfchip button{background:none;border:0;color:var(--mute);font-size:15px;line-height:1;cursor:pointer;padding:0 3px}
+.pfchip button:hover{color:var(--text)}
+.pfchoose{display:grid;grid-template-columns:repeat(auto-fill,minmax(84px,1fr));gap:8px;max-height:270px;overflow-y:auto;padding:10px;margin-top:8px;border:1px solid var(--line);border-radius:12px;background:#101013;scrollbar-width:thin}
+.pfchoose[hidden]{display:none}
+.pfchoose .sub{grid-column:1/-1;margin:0}
+.pfpick{position:relative;background:#1c1c20;border:2px solid transparent;border-radius:9px;padding:0;cursor:pointer;color:var(--text);overflow:hidden;aspect-ratio:2/3;display:flex;align-items:flex-end;text-align:left}
+.pfpick img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.pfpick span{position:relative;width:100%;padding:14px 6px 5px;font-size:10.500px;font-weight:700;line-height:1.2;background:linear-gradient(transparent,rgba(0,0,0,.88));display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.pfpick.on{border-color:#74bfff}
+.pfpick.on::after{content:"\2713";position:absolute;top:5px;right:5px;width:20px;height:20px;border-radius:50%;background:#74bfff;color:#0b0b0c;font-size:12px;font-weight:800;display:grid;place-items:center}
+.pfwarn{margin:10px 0 0;font-size:13px;color:#ffc857;min-height:0}
+.pfwarn:empty{display:none}
+.pffoot{display:flex;justify-content:flex-end;gap:8px;margin-top:18px;padding-top:16px;border-top:1px solid var(--line)}
+.pffoot.col{flex-direction:column;border-top:0;padding-top:0}
+.pffoot.col .vbtn{text-align:left}
+@media(max-width:640px){.pfbtn{right:10px;width:36px;height:36px}.pfcard,.pfcard.pfme{flex-direction:column;gap:14px;padding:16px}.pfedit{flex-direction:column;align-items:stretch}.pfpic{justify-items:start}.pfhead h2{font-size:25px}}
 .card .poster{transition:transform .18s ease}
 .card:hover .poster{transform:translateY(-3px)}
 @media(prefers-reduced-motion:reduce){.card .poster{transition:none}.card:hover .poster{transform:none}}
@@ -3593,207 +3642,328 @@ new MutationObserver(function(muts) {
   });
 }).observe(document.body, { childList: true, subtree: true });
 
-// ── Accounts: log in to keep Continue watching, the library and reading progress on the
-// server, so they survive a cleared browser and follow you to other devices. Without an
-// account everything works as before, saved in this browser only.
+// ── Profiles: no login. Your profile (name, picture, favourites) lives in this browser.
+// "Share as file" writes it, with your library and progress, to a file. A friend can import
+// that file to see your lists; you can import your own to restore everything on another
+// browser or after this one was cleared.
 (function() {
-  var AUTH = null, dirty = false;
-  try { AUTH = JSON.parse(localStorage.getItem("hoshi-auth") || "null"); } catch (e) {}
-  if (!AUTH || typeof AUTH.token !== "string" || typeof AUTH.username !== "string") AUTH = null;
-  try { dirty = localStorage.getItem("hoshi-sync-dirty") === "1"; } catch (e) {}
-  function saveAuth() { try { if (AUTH) localStorage.setItem("hoshi-auth", JSON.stringify(AUTH)); else localStorage.removeItem("hoshi-auth"); } catch (e) {} }
-  function setDirty(on) { dirty = on; try { if (on) localStorage.setItem("hoshi-sync-dirty", "1"); else localStorage.removeItem("hoshi-sync-dirty"); } catch (e) {} }
+  var ME = null, FRIENDS = [];
+  try { ME = JSON.parse(localStorage.getItem("hoshi-profile") || "null"); } catch (e) {}
+  try { FRIENDS = JSON.parse(localStorage.getItem("hoshi-friends") || "[]"); } catch (e) {}
+  if (!ME || typeof ME !== "object") ME = null;
+  if (!Array.isArray(FRIENDS)) FRIENDS = [];
+  // Returns false when the browser refused (storage blocked or full).
+  function store(key, value) { try { localStorage.setItem(key, JSON.stringify(value)); return true; } catch (e) { return false; } }
+  function newId() { return "p" + Date.now().toString(36) + Math.random().toString(36).slice(2, 10); }
 
-  function api(path, method, body) {
-    var headers = { "Accept": "application/json" };
-    if (body) headers["Content-Type"] = "application/json";
-    if (AUTH) headers.Authorization = "Bearer " + AUTH.token;
-    return fetch(STREAM_API_BASE + path, { method: method || "GET", headers: headers, body: body ? JSON.stringify(body) : undefined })
-      .then(function(r) {
-        return r.json().catch(function() { return {}; }).then(function(j) {
-          if (!r.ok) { var err = new Error(j.error || ("The server answered " + r.status + ".")); err.status = r.status; throw err; }
-          return j;
+  // ── Cleaning: everything read from a file is rebuilt field by field, never trusted as is ──
+  function text(v, max) { return typeof v === "string" ? v.slice(0, max) : ""; }
+  function webImage(v) { return typeof v === "string" && /^https:\/\//i.test(v) && v.length < 600 ? v : ""; }
+  function picture(v) { return typeof v === "string" && /^data:image\/(?:jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(v) && v.length < 200000 ? v : ""; }
+  function cleanTitle(a) {
+    if (!a || typeof a !== "object") return null;
+    var id = typeof a.id === "number" ? a.id : text(a.id, 80);
+    var title = text(a.title, 200);
+    if (id === "" || !title || !/^[A-Za-z0-9_.:-]+$/.test(String(id))) return null;
+    var out = { id: id, title: title, type: text(a.type, 30) || "TV", meta: text(a.meta, 80), ep: text(a.ep, 30), img: webImage(a.img) };
+    ["aniId", "malId"].forEach(function(k) { if (/^\d{1,10}$/.test(String(a[k] || ""))) out[k] = Number(a[k]); });
+    ["src", "source", "lang", "sub"].forEach(function(k) { if (typeof a[k] === "string") out[k] = a[k].slice(0, 80); });
+    if (Array.isArray(a.genres)) out.genres = a.genres.filter(function(g) { return typeof g === "string"; }).slice(0, 8).map(function(g) { return g.slice(0, 30); });
+    if (typeof a.description === "string") out.description = a.description.slice(0, 1500);
+    return out;
+  }
+  function cleanTitles(list, max) {
+    var seen = {}, out = [];
+    (Array.isArray(list) ? list : []).forEach(function(a) {
+      var c = cleanTitle(a); if (!c || out.length >= max) return;
+      var k = titleKey(c); if (seen[k]) return; seen[k] = 1; out.push(c);
+    });
+    return out;
+  }
+  function cleanProfile(p) {
+    p = p && typeof p === "object" ? p : {};
+    return { id: /^[A-Za-z0-9]{6,40}$/.test(String(p.id || "")) ? String(p.id) : newId(), name: text(p.name, 40).trim(), about: text(p.about, 160).trim(), pic: picture(p.pic), favs: cleanTitles(p.favs, 12) };
+  }
+  // Progress maps keep their own shape (the page's own code reads them), but every entry
+  // must be a plain object with a clean title snapshot, and the whole thing is size-capped.
+  function cleanProgress(map, max) {
+    var out = {}, n = 0;
+    if (!map || typeof map !== "object" || Array.isArray(map)) return out;
+    Object.keys(map).forEach(function(k) {
+      var p = map[k];
+      if (n >= max || !/^[A-Za-z0-9_.:-]{1,80}$/.test(k) || !p || typeof p !== "object" || Array.isArray(p)) return;
+      var a = cleanTitle(p.a); if (!a) return;
+      var e = { a: a, ts: Number(p.ts) || 0 };
+      if (typeof p.l === "number" || typeof p.l === "string") e.l = typeof p.l === "number" ? p.l : p.l.slice(0, 20);
+      ["n", "p"].forEach(function(f) { if (typeof p[f] === "number" && isFinite(p[f])) e[f] = p[f]; });
+      ["s", "watch"].forEach(function(f) {
+        if (!p[f] || typeof p[f] !== "object" || Array.isArray(p[f])) return;
+        var m = {}, c = 0;
+        Object.keys(p[f]).forEach(function(x) {
+          if (c >= 3000 || !/^[0-9.]{1,10}$/.test(x)) return;
+          var v = p[f][x];
+          if (f === "s") { m[x] = 1; c++; }
+          else if (v && typeof v === "object") { m[x] = { seconds: Number(v.seconds) || 0, duration: Number(v.duration) || 0, percent: Math.max(0, Math.min(100, Number(v.percent) || 0)), completed: v.completed === true }; c++; }
         });
-      }, function() { throw new Error("Could not reach the server. Check your connection."); });
-  }
-
-  // The three things that sync. They are the same objects the rest of the page uses.
-  function collect() { return { prog: PROG, lib: LIB, read: RP }; }
-  function replace(target, source) {
-    Object.keys(target).forEach(function(k) { delete target[k]; });
-    Object.keys(source || {}).forEach(function(k) { target[k] = source[k]; });
-  }
-  // Progress entries carry a time stamp. The newer copy of each wins. An entry that exists
-  // only here is kept if it is new since the server's copy (or has no time stamp); otherwise
-  // it was removed on another device, so it goes. `joining` keeps everything from both sides.
-  function mergeStamped(local, server, serverAt, joining) {
-    var out = {};
-    Object.keys(server || {}).forEach(function(k) { out[k] = server[k]; });
-    Object.keys(local).forEach(function(k) {
-      var l = local[k], s = out[k], lts = (l && l.ts) || 0;
-      if (s) { if (lts > (s.ts || 0)) out[k] = l; }
-      else if (joining || !lts || lts > serverAt) out[k] = l;
+        e[f] = m;
+      });
+      if (!e.s) e.s = {};
+      out[k] = e; n++;
     });
     return out;
   }
-  // The library has no time stamps: the server's copy wins, except when joining.
-  function mergePlain(local, server, joining) {
-    if (!server) return local;
-    if (!joining) return server;
-    var out = {};
-    Object.keys(local).forEach(function(k) { out[k] = local[k]; });
-    Object.keys(server).forEach(function(k) { out[k] = server[k]; });
-    return out;
+
+  // ── Numbers shown on a profile ──
+  function myStats() {
+    return { library: Object.keys(LIB).length, watched: Object.keys(PROG).filter(function(k) { return PROG[k] && PROG[k].a; }).length, read: Object.keys(RP).filter(function(k) { return RP[k] && RP[k].a; }).length };
+  }
+  function myTitles() { // everything you could mark as a favourite: library first, then what you watched or read
+    var list = Object.keys(LIB).map(function(k) { return LIB[k]; });
+    [PROG, RP].forEach(function(m) { Object.keys(m).forEach(function(k) { if (m[k] && m[k].a) list.push(m[k].a); }); });
+    return cleanTitles(list, 400);
   }
 
-  // Saving anywhere on the page marks the account as needing a sync.
-  var rawSaveProg = saveProg, rawSaveLib = saveLib, rawSaveRP = saveRP;
-  saveProg = function() { rawSaveProg(); changed(); };
-  saveLib = function() { rawSaveLib(); changed(); };
-  saveRP = function() { rawSaveRP(); changed(); };
-
-  // Uploads are spaced at least 90 seconds apart: progress is saved every few seconds while
-  // an episode plays, and the server's free storage allows a limited number of writes a day.
-  var pushTimer = 0, lastPush = 0;
-  function changed() {
-    setDirty(true);
-    if (!AUTH || pushTimer) return;
-    pushTimer = setTimeout(function() { pushTimer = 0; push(); }, Math.max(3000, 90000 - (Date.now() - lastPush)));
+  // ── Small builders ──
+  function button(cls, label, fn) { var b = mk("button", cls, label); b.type = "button"; b.onclick = fn; return b; }
+  function avatar(p, size) {
+    var el = mk("div", "pfava" + (size ? " " + size : ""));
+    if (p && p.pic) { var im = new Image(); im.alt = ""; im.src = p.pic; el.appendChild(im); }
+    else el.textContent = p && p.name ? p.name.charAt(0).toUpperCase() : "?";
+    return el;
   }
-  function push() {
-    if (!AUTH) return Promise.resolve();
-    lastPush = Date.now();
-    return api("/sync", "PUT", { data: collect() }).then(function() {
-      setDirty(false); status("Synced " + new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }));
-    }).catch(function(e) {
-      if (e.status === 401) return signedOut("Your login expired. Please log in again.");
-      status("Not synced yet: " + e.message);
+  function statRow(st, favs) {
+    var row = mk("div", "pfstats");
+    [[st.library, "in library"], [st.watched, "shows watched"], [st.read, "series read"], [favs, "favourites"]].forEach(function(x) {
+      var s = mk("span"); s.appendChild(mk("b", "", String(x[0] || 0))); s.appendChild(document.createTextNode(" " + x[1])); row.appendChild(s);
     });
+    return row;
   }
-  // joining: first sync after logging in, or local changes that never reached the server.
-  function pull(joining) {
-    return api("/sync").then(function(res) {
-      var d = res.data || {}, at = Number(res.updatedAt) || 0, join = joining || !res.data;
-      replace(PROG, mergeStamped(PROG, d.prog, at, join));
-      replace(RP, mergeStamped(RP, d.read, at, join));
-      replace(LIB, mergePlain(LIB, d.lib, join));
-      rawSaveProg(); rawSaveLib(); rawSaveRP();
+  function titleRow(list) { var row = mk("div", "row pfrow"); list.forEach(function(a) { row.appendChild(card(a, 0)); }); return row; }
+  var noteTimer = 0;
+  function say(msg) { note.textContent = msg; note.hidden = !msg; clearTimeout(noteTimer); if (msg) noteTimer = setTimeout(function() { note.hidden = true; }, 6000); }
+
+  // ── The page (an overlay, so the pill menu and the address stay as they are) ──
+  var open = mk("button", "pfbtn"); open.type = "button";
+  var page = mk("div", "pfpage"); page.hidden = true; page.setAttribute("role", "dialog"); page.setAttribute("aria-label", "Profiles");
+  var inner = mk("div", "pfinner"); page.appendChild(inner);
+  var note = mk("div", "pfnote"); note.hidden = true; note.setAttribute("role", "status");
+  var filePick = mk("input"); filePick.type = "file"; filePick.accept = ".json,application/json"; filePick.hidden = true;
+  function drawOpen() {
+    open.innerHTML = "";
+    if (ME && ME.pic) { var im = new Image(); im.alt = ""; im.src = ME.pic; open.appendChild(im); }
+    else if (ME && ME.name) open.textContent = ME.name.charAt(0).toUpperCase();
+    else open.innerHTML = '<svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.500-4 4.500-6 8-6s6.500 2 8 6"/></svg>';
+    open.title = ME && ME.name ? ME.name + " · Profiles" : "Profiles"; open.setAttribute("aria-label", open.title);
+  }
+  function closePage() { page.hidden = true; document.documentElement.style.overflow = ""; }
+  function draw() {
+    inner.innerHTML = "";
+    var head = mk("div", "pfhead"), ht = mk("div");
+    ht.appendChild(mk("h2", "", "Profiles"));
+    ht.appendChild(mk("p", "sub", "Yours, and the ones friends have shared with you. Everything here stays in this browser."));
+    head.appendChild(ht); head.appendChild(button("pfx", "×", closePage)).setAttribute("aria-label", "Close profiles");
+    inner.appendChild(head);
+
+    var mine = mk("section", "pfcard pfme");
+    mine.appendChild(avatar(ME, "lg"));
+    var body = mk("div", "pfbody");
+    body.appendChild(mk("span", "pfkick", "You"));
+    body.appendChild(mk("h3", "pfname", ME && ME.name ? ME.name : "Set up your profile"));
+    body.appendChild(mk("p", "pfabout", ME && ME.about ? ME.about : (ME ? "" : "Add a name, a picture and your favourites. Friends see this when you share your profile.")));
+    body.appendChild(statRow(myStats(), ME ? ME.favs.length : 0));
+    var acts = mk("div", "pfacts");
+    acts.appendChild(button("vbtn pri", ME ? "Edit profile" : "+ Create profile", function() { editor(); }));
+    acts.appendChild(button("vbtn", "Share as file", share));
+    acts.appendChild(button("vbtn", "Import a profile", function() { filePick.value = ""; filePick.click(); }));
+    body.appendChild(acts);
+    mine.appendChild(body); inner.appendChild(mine);
+    if (ME && ME.favs.length) { inner.appendChild(mk("h3", "pfsec", "Your favourites")); inner.appendChild(titleRow(ME.favs)); }
+
+    var fh = mk("h3", "pfsec", "From friends "); fh.appendChild(mk("i", "", String(FRIENDS.length))); inner.appendChild(fh);
+    if (!FRIENDS.length) {
+      var empty = mk("div", "pfempty");
+      empty.appendChild(mk("b", "", "No shared profiles yet"));
+      empty.appendChild(mk("p", "", "When a friend sends you their Hoshi profile file, use Import a profile. Their favourites and library show up here."));
+      inner.appendChild(empty);
+    }
+    FRIENDS.forEach(function(f, i) {
+      var c = mk("section", "pfcard");
+      c.appendChild(avatar(f.profile, ""));
+      var b = mk("div", "pfbody");
+      b.appendChild(mk("h3", "pfname sm", f.profile.name || "Unnamed friend"));
+      if (f.profile.about) b.appendChild(mk("p", "pfabout", f.profile.about));
+      b.appendChild(statRow(f.stats || {}, f.profile.favs.length));
+      var a2 = mk("div", "pfacts");
+      var lists = mk("div", "pflists"); lists.hidden = true;
+      a2.appendChild(button("vbtn sm", "Show lists", function() {
+        lists.hidden = !lists.hidden; this.textContent = lists.hidden ? "Show lists" : "Hide lists";
+        if (lists.hidden || lists.childNodes.length) return;
+        if (f.profile.favs.length) { lists.appendChild(mk("h4", "pfsub", "Favourites")); lists.appendChild(titleRow(f.profile.favs)); }
+        if (f.library.length) { lists.appendChild(mk("h4", "pfsub", "Library")); lists.appendChild(titleRow(f.library)); }
+        if (!lists.childNodes.length) lists.appendChild(mk("p", "sub", "This profile has no lists in it."));
+      }));
+      a2.appendChild(button("vbtn sm", "Remove", function() {
+        if (!confirm("Remove " + (f.profile.name || "this profile") + " from your friends list?")) return;
+        FRIENDS.splice(i, 1); store("hoshi-friends", FRIENDS); draw();
+      }));
+      b.appendChild(a2); c.appendChild(b); inner.appendChild(c); inner.appendChild(lists);
+    });
+    inner.appendChild(note);
+  }
+
+  // ── Create / edit ──
+  function editor() {
+    var draft = cleanProfile(ME || {});
+    var veil = mk("div", "pfveil"), box = mk("div", "pfbox");
+    box.setAttribute("role", "dialog"); box.setAttribute("aria-modal", "true"); box.setAttribute("aria-label", ME ? "Edit your profile" : "Create your profile");
+    function shut() { veil.remove(); }
+    box.appendChild(button("pfx", "×", shut)).setAttribute("aria-label", "Close");
+    box.appendChild(mk("h3", "pfboxt", ME ? "Edit your profile" : "Create your profile"));
+    var top = mk("div", "pfedit"), left = mk("div", "pfpic"), right = mk("div", "pffields");
+    var av = avatar(draft, "lg"); left.appendChild(av);
+    var picIn = mk("input"); picIn.type = "file"; picIn.accept = "image/*"; picIn.hidden = true;
+    function redrawAvatar() { var n = avatar({ pic: draft.pic, name: nameIn.value.trim() }, "lg"); left.replaceChild(n, av); av = n; }
+    left.appendChild(button("pflink", "Add picture", function() { picIn.value = ""; picIn.click(); }));
+    var clear = button("pflink", "Remove picture", function() { draft.pic = ""; redrawAvatar(); clear.hidden = true; }); clear.hidden = !draft.pic; left.appendChild(clear);
+    left.appendChild(picIn);
+    // The picture is shrunk to 256 px and stored inside the profile, so it travels in the file.
+    picIn.onchange = function() {
+      var file = picIn.files && picIn.files[0]; if (!file) return;
+      var url = URL.createObjectURL(file), im = new Image();
+      im.onload = function() {
+        var side = Math.min(im.naturalWidth, im.naturalHeight), cv = document.createElement("canvas"); cv.width = cv.height = 256;
+        cv.getContext("2d").drawImage(im, (im.naturalWidth - side) / 2, (im.naturalHeight - side) / 2, side, side, 0, 0, 256, 256);
+        URL.revokeObjectURL(url);
+        draft.pic = picture(cv.toDataURL("image/jpeg", 0.82)); redrawAvatar(); clear.hidden = !draft.pic;
+      };
+      im.onerror = function() { URL.revokeObjectURL(url); warn.textContent = "That file is not a picture this browser can read."; };
+      im.src = url;
+    };
+    function field(label, value, max, hint) {
+      var w = mk("label", "pffield"); w.appendChild(document.createTextNode(label));
+      var i = mk("input"); i.type = "text"; i.maxLength = max; i.value = value; i.placeholder = hint; w.appendChild(i); right.appendChild(w); return i;
+    }
+    var nameIn = field("Name", draft.name, 40, "What should friends see?");
+    var aboutIn = field("About you", draft.about, 160, "Mostly seinen, the odd shoujo, zero filler.");
+    nameIn.oninput = function() { if (!draft.pic) redrawAvatar(); };
+    top.appendChild(left); top.appendChild(right); box.appendChild(top);
+
+    var favHead = mk("div", "pffavh"), favCount = mk("b", "", ""), favList = mk("div", "pffavs");
+    favHead.appendChild(favCount);
+    var chooser = mk("div", "pfchoose"); chooser.hidden = true;
+    favHead.appendChild(button("pflink", "+ Choose", function() { chooser.hidden = !chooser.hidden; this.textContent = chooser.hidden ? "+ Choose" : "Done"; if (!chooser.hidden) drawChooser(); }));
+    box.appendChild(favHead); box.appendChild(favList); box.appendChild(chooser);
+    function isFav(a) { var k = titleKey(a); return draft.favs.some(function(f) { return titleKey(f) === k; }); }
+    function drawFavs() {
+      favCount.textContent = "Favourites " + draft.favs.length + "/12";
+      favList.innerHTML = "";
+      if (!draft.favs.length) { favList.appendChild(mk("p", "sub", "Pick the shows and series you'd hand a friend first.")); return; }
+      draft.favs.forEach(function(a, i) {
+        var chip = mk("span", "pfchip", a.title);
+        chip.appendChild(button("", "×", function() { draft.favs.splice(i, 1); drawFavs(); if (!chooser.hidden) drawChooser(); })).setAttribute("aria-label", "Remove " + a.title);
+        favList.appendChild(chip);
+      });
+    }
+    function drawChooser() {
+      chooser.innerHTML = "";
+      var all = myTitles();
+      if (!all.length) { chooser.appendChild(mk("p", "sub", "Nothing to pick from yet. Save a title to your library or watch something first.")); return; }
+      all.forEach(function(a) {
+        var b = button("pfpick" + (isFav(a) ? " on" : ""), "", function() {
+          var k = titleKey(a);
+          if (isFav(a)) draft.favs = draft.favs.filter(function(f) { return titleKey(f) !== k; });
+          else if (draft.favs.length >= 12) { warn.textContent = "Twelve favourites is the limit. Remove one first."; return; }
+          else draft.favs.push(a);
+          warn.textContent = ""; drawFavs(); drawChooser();
+        });
+        if (a.img) { var im = new Image(); im.alt = ""; im.loading = "lazy"; im.referrerPolicy = "no-referrer"; im.src = a.img; b.appendChild(im); }
+        b.appendChild(mk("span", "", a.title)); b.setAttribute("aria-pressed", String(isFav(a)));
+        chooser.appendChild(b);
+      });
+    }
+    drawFavs();
+    var warn = mk("p", "pfwarn", ""); warn.setAttribute("role", "alert"); box.appendChild(warn);
+    var foot = mk("div", "pffoot");
+    foot.appendChild(button("vbtn", "Cancel", shut));
+    foot.appendChild(button("vbtn pri", "Save", function() {
+      draft.name = nameIn.value.trim().slice(0, 40); draft.about = aboutIn.value.trim().slice(0, 160);
+      if (!draft.name) { warn.textContent = "Give your profile a name."; nameIn.focus(); return; }
+      if (!store("hoshi-profile", draft)) { warn.textContent = "This browser would not save the profile. Its storage is blocked or full."; return; }
+      ME = draft; drawOpen(); draw(); shut(); say("Profile saved.");
+    }));
+    box.appendChild(foot);
+    veil.appendChild(box); veil.onmousedown = function(e) { if (e.target === veil) shut(); };
+    veil.onkeydown = function(e) { if (e.key === "Escape") { e.stopPropagation(); shut(); } };
+    page.appendChild(veil); nameIn.focus();
+  }
+
+  // ── Share as file ──
+  function share() {
+    if (!ME) { say("Create your profile first, then share it."); editor(); return; }
+    var file = { format: "hoshi-profile", version: 1, exportedAt: new Date().toISOString(), profile: ME, stats: myStats(),
+      library: Object.keys(LIB).map(function(k) { return LIB[k]; }), progress: PROG, read: RP };
+    var blob = new Blob([JSON.stringify(file)], { type: "application/json" }), url = URL.createObjectURL(blob);
+    var a = document.createElement("a");
+    a.href = url; a.download = (ME.name.replace(/[^A-Za-z0-9_-]+/g, "-").replace(/^-+|-+$/g, "") || "profile") + ".hoshi.json";
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function() { URL.revokeObjectURL(url); }, 2000);
+    say("Saved a profile file to your downloads. Send it to a friend, or keep it as a backup of your library and progress.");
+  }
+
+  // ── Import ──
+  filePick.onchange = function() {
+    var file = filePick.files && filePick.files[0]; if (!file) return;
+    if (file.size > 6 * 1024 * 1024) { say("That file is too large to be a Hoshi profile."); return; }
+    file.text().then(function(raw) {
+      var data; try { data = JSON.parse(raw); } catch (e) { data = null; }
+      if (!data || data.format !== "hoshi-profile" || !data.profile) { say("That is not a Hoshi profile file."); return; }
+      var incoming = { profile: cleanProfile(data.profile), library: cleanTitles(data.library, 600), progress: cleanProgress(data.progress, 200), read: cleanProgress(data.read, 200), importedAt: Date.now() };
+      incoming.stats = { library: incoming.library.length, watched: Object.keys(incoming.progress).length, read: Object.keys(incoming.read).length };
+      ask(incoming);
+    }).catch(function() { say("Could not read that file."); });
+  };
+  function ask(incoming) {
+    var veil = mk("div", "pfveil"), box = mk("div", "pfbox sm");
+    box.setAttribute("role", "dialog"); box.setAttribute("aria-modal", "true"); box.setAttribute("aria-label", "Import a profile");
+    function shut() { veil.remove(); }
+    var mineAlready = ME && ME.id === incoming.profile.id;
+    box.appendChild(button("pfx", "×", shut)).setAttribute("aria-label", "Close");
+    box.appendChild(mk("h3", "pfboxt", "Import “" + (incoming.profile.name || "Unnamed") + "”"));
+    box.appendChild(mk("p", "pfabout", incoming.stats.library + " in library, " + incoming.stats.watched + " shows watched, " + incoming.stats.read + " series read. Whose profile is this?"));
+    var foot = mk("div", "pffoot col");
+    foot.appendChild(button("vbtn" + (mineAlready ? "" : " pri"), "A friend's — add it to my friends", function() {
+      var entry = { profile: incoming.profile, library: incoming.library, stats: incoming.stats, importedAt: incoming.importedAt };
+      var next = FRIENDS.filter(function(f) { return f.profile.id !== entry.profile.id; }); next.unshift(entry); next = next.slice(0, 30);
+      if (!store("hoshi-friends", next)) { say("This browser would not save it. Its storage is blocked or full."); shut(); return; }
+      FRIENDS = next; shut(); draw(); say("Added " + (entry.profile.name || "the profile") + " to your friends.");
+    }));
+    foot.appendChild(button("vbtn" + (mineAlready ? " pri" : ""), "Mine — restore my profile, library and progress", function() {
+      // Adds to what is here; for a show in both, the more recent progress wins. Nothing is deleted.
+      incoming.library.forEach(function(a) { if (!LIB[a.id]) LIB[a.id] = a; });
+      [[PROG, incoming.progress], [RP, incoming.read]].forEach(function(pair) {
+        Object.keys(pair[1]).forEach(function(k) { var have = pair[0][k]; if (!have || (pair[1][k].ts || 0) > (have.ts || 0)) pair[0][k] = pair[1][k]; });
+      });
+      saveLib(); saveProg(); saveRP();
+      ME = incoming.profile; store("hoshi-profile", ME);
+      drawOpen(); shut(); draw();
       if (VIEW === "home") { drawCW(); drawCR(); }
       if (VIEW === "library") drawLib();
-      status("Synced " + new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }));
-      if (join) return push();
-    }).catch(function(e) {
-      if (e.status === 401) return signedOut("Your login expired. Please log in again.");
-      status("Could not sync: " + e.message);
-    });
-  }
-  // Leaving the page with changes waiting: send them now if they are small enough to go
-  // out after the page has closed.
-  window.addEventListener("pagehide", function() {
-    if (!AUTH || !dirty) return;
-    try {
-      var body = JSON.stringify({ data: collect() });
-      if (body.length > 60000) return;
-      fetch(STREAM_API_BASE + "/sync", { method: "PUT", keepalive: true, headers: { "Content-Type": "application/json", "Authorization": "Bearer " + AUTH.token }, body: body });
-    } catch (e) {}
-  });
-
-  // ── The button and the dialog ──
-  var USER_ICON = '<svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.500 2 8 6"/></svg>';
-  var btn = mk("button", "acctbtn"); btn.type = "button";
-  var modal = mk("div", "acctmodal"); modal.hidden = true;
-  var box = mk("div", "acctbox"); box.setAttribute("role", "dialog"); box.setAttribute("aria-modal", "true"); box.setAttribute("aria-label", "Account");
-  modal.appendChild(box);
-  var statusText = "";
-  function status(text) { statusText = text; var el = box.querySelector(".acctstatus"); if (el) el.textContent = text; }
-  function drawButton() {
-    btn.classList.toggle("in", !!AUTH);
-    if (AUTH) { btn.textContent = AUTH.username.charAt(0).toUpperCase(); btn.title = "Signed in as " + AUTH.username; }
-    else { btn.innerHTML = USER_ICON; btn.title = "Log in or create an account"; }
-    btn.setAttribute("aria-label", btn.title);
-  }
-  function close() { modal.hidden = true; btn.focus(); }
-  function closeButton() { var x = mk("button", "acctx", "×"); x.type = "button"; x.setAttribute("aria-label", "Close"); x.onclick = close; return x; }
-  function signedOut(message) {
-    AUTH = null; saveAuth(); clearTimeout(pushTimer); pushTimer = 0;
-    drawButton();
-    if (!modal.hidden || message) { drawForm("login", message); }
+      say("Restored your profile, library and progress from the file.");
+    }));
+    foot.appendChild(button("vbtn", "Cancel", shut));
+    box.appendChild(foot); veil.appendChild(box);
+    veil.onmousedown = function(e) { if (e.target === veil) shut(); };
+    veil.onkeydown = function(e) { if (e.key === "Escape") { e.stopPropagation(); shut(); } };
+    page.appendChild(veil); foot.querySelector(".pri").focus();
   }
 
-  function drawAccount() {
-    box.innerHTML = "";
-    box.appendChild(closeButton());
-    box.appendChild(mk("h3", "accttitle", "Your account"));
-    box.appendChild(mk("p", "acctline", "Signed in as " + AUTH.username + ". Continue watching, your library and your reading progress are kept on the server and follow you to any device you log in on."));
-    box.appendChild(mk("p", "acctstatus", statusText || "Not synced yet in this visit."));
-    var row = mk("div", "acctrow");
-    var sync = mk("button", "vbtn pri", "Sync now"); sync.type = "button";
-    sync.onclick = function() { status("Syncing…"); push().then(function() { return pull(false); }); };
-    var out = mk("button", "vbtn", "Log out"); out.type = "button";
-    out.onclick = function() {
-      var bye = function() { signedOut(); drawForm("login", "You are logged out. What you watched stays in this browser."); };
-      // Send anything waiting first, so logging out never loses the last few minutes.
-      (dirty ? push() : Promise.resolve()).then(function() { return AUTH ? api("/auth/logout", "POST").catch(function() {}) : null; }).then(bye);
-    };
-    row.appendChild(sync); row.appendChild(out); box.appendChild(row);
-  }
-
-  function drawForm(mode, message) {
-    var signup = mode === "signup";
-    box.innerHTML = "";
-    box.appendChild(closeButton());
-    box.appendChild(mk("h3", "accttitle", signup ? "Create an account" : "Log in"));
-    box.appendChild(mk("p", "acctline", signup
-      ? "Pick a username and a password. There is no email and no password reset, so keep the password somewhere safe."
-      : "Log in to keep Continue watching and your library across browsers and devices."));
-    var form = mk("form", "acctform"); form.noValidate = true;
-    function field(label, type, name, auto) {
-      var wrap = mk("label", "acctfield"); wrap.appendChild(document.createTextNode(label));
-      var input = mk("input"); input.type = type; input.name = name; input.autocomplete = auto; input.required = true;
-      input.autocapitalize = "none"; input.spellcheck = false;
-      wrap.appendChild(input); form.appendChild(wrap); return input;
-    }
-    var user = field("Username", "text", "username", "username");
-    var pass = field("Password", "password", "password", signup ? "new-password" : "current-password");
-    var code = null;
-    if (signup) { code = field("Invite code (only if you were given one)", "text", "code", "off"); code.required = false; }
-    var note = mk("p", "acctnote", message || ""); note.setAttribute("role", "alert");
-    form.appendChild(note);
-    var go = mk("button", "vbtn pri", signup ? "Create account" : "Log in"); go.type = "submit";
-    form.appendChild(go);
-    form.onsubmit = function(e) {
-      e.preventDefault();
-      var name = user.value.trim(), pw = pass.value;
-      if (!/^[A-Za-z0-9_]{3,20}$/.test(name)) { note.textContent = "Usernames are 3 to 20 letters, numbers or underscores."; user.focus(); return; }
-      if (pw.length < 8) { note.textContent = "Passwords need at least 8 characters."; pass.focus(); return; }
-      go.disabled = true; note.textContent = signup ? "Creating your account…" : "Logging in…";
-      var body = { username: name, password: pw };
-      if (code && code.value.trim()) body.code = code.value.trim();
-      api(signup ? "/auth/signup" : "/auth/login", "POST", body).then(function(res) {
-        AUTH = { token: res.token, username: res.username }; saveAuth();
-        drawButton(); statusText = "Syncing…"; drawAccount();
-        return pull(true);
-      }).catch(function(err) { go.disabled = false; note.textContent = err.message; });
-    };
-    box.appendChild(form);
-    var swap = mk("button", "acctswap", signup ? "I already have an account" : "Create an account"); swap.type = "button";
-    swap.onclick = function() { drawForm(signup ? "login" : "signup"); };
-    box.appendChild(swap);
-    if (!modal.hidden) user.focus();
-  }
-
-  btn.onclick = function() {
-    if (AUTH) drawAccount(); else drawForm("login");
-    modal.hidden = false;
-    var first = box.querySelector("input, .vbtn"); if (first) first.focus();
-  };
-  modal.addEventListener("mousedown", function(e) { if (e.target === modal) close(); });
-  modal.addEventListener("keydown", function(e) { if (e.key === "Escape") { e.stopPropagation(); close(); } });
-  drawButton();
-  document.body.appendChild(btn); document.body.appendChild(modal);
-
-  // Already logged in from an earlier visit: fetch the server's copy now.
-  if (AUTH) pull(dirty);
+  open.onclick = function() { draw(); page.hidden = false; document.documentElement.style.overflow = "hidden"; page.scrollTop = 0; inner.querySelector(".pfx").focus(); };
+  page.addEventListener("keydown", function(e) { if (e.key === "Escape") closePage(); });
+  // Opening a title from a profile (or any other navigation) puts the page away.
+  window.addEventListener("hashchange", function() { if (!page.hidden) closePage(); });
+  page.addEventListener("click", function(e) { if (e.target.closest && e.target.closest("a.card")) setTimeout(closePage, 0); });
+  drawOpen();
+  document.body.appendChild(open); document.body.appendChild(page); document.body.appendChild(filePick);
 })();
 
 initDiscover();
