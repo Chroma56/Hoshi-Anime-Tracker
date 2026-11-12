@@ -9,6 +9,15 @@
 <link rel="preconnect" href="https://anime-proxy.tasinsadman302.workers.dev" crossorigin>
 <link rel="dns-prefetch" href="https://megaplay.buzz">
 <title>Hoshi – Anime and manga tracker</title>
+<!-- Installable app: icon, name and window colour for "Install Hoshi" on desktop and "Add to Home Screen" on phones -->
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#0b0b0c">
+<link rel="icon" type="image/png" sizes="192x192" href="image-1794503482774.png">
+<link rel="apple-touch-icon" href="image-1794503482774.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Hoshi">
 <!-- Merged Hoshi Player V2 into user-provided index(3).html; custom features retained -->
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@600;800&family=DM+Sans:wght@400;500;700&display=swap">
 <style>
@@ -335,6 +344,15 @@ html{overflow-x:clip}
 .v.watching>.vhead{order:3}
 .v.watching .hdp-stage,.v.watching .hdp-video{max-height:76vh}
 }
+/* "Install app" chip, shown beside the profile button when the browser offers to install Hoshi */
+.pfinstall{position:fixed;top:calc(12px + env(safe-area-inset-top,0px));right:66px;z-index:640;height:40px;display:flex;align-items:center;border-radius:999px;border:1px solid rgba(255,255,255,.14);background:rgba(16,16,18,.72);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);box-shadow:0 8px 24px rgba(0,0,0,.4);overflow:hidden}
+.pfinstall[hidden]{display:none}
+.pfinstall button{background:none;border:0;color:var(--text);font:inherit;font-size:13px;font-weight:700;cursor:pointer;height:100%}
+.pfinstall-go{padding:0 6px 0 16px}
+.pfinstall-no{padding:0 12px 0 6px;color:var(--mute)!important;font-size:17px!important}
+.pfinstall button:hover{background:rgba(255,255,255,.12)}
+@media(max-width:640px){.pfinstall{right:54px;height:36px}}
+@media(display-mode:standalone){.pfinstall{display:none}}
 /* Profiles: the button, the page and its dialogs */
 .pfbtn{position:fixed;top:calc(12px + env(safe-area-inset-top,0px));right:16px;z-index:640;width:40px;height:40px;border-radius:50%;border:1px solid rgba(255,255,255,.14);background:rgba(16,16,18,.72);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);color:var(--text);display:grid;place-items:center;cursor:pointer;font:800 15px "Bricolage Grotesque",sans-serif;box-shadow:0 8px 24px rgba(0,0,0,.4);overflow:hidden;padding:0}
 .pfbtn:hover{background:rgba(255,255,255,.16)}
@@ -4011,6 +4029,34 @@ new MutationObserver(function(muts) {
   page.addEventListener("click", function(e) { if (e.target.closest && e.target.closest("a.card")) setTimeout(closePage, 0); });
   drawOpen();
   document.body.appendChild(open); document.body.appendChild(page); document.body.appendChild(filePick);
+})();
+
+// ── Installable app ──
+// Registers the small worker that lets the installed app open offline, and shows an
+// "Install app" button when the browser says Hoshi can be installed (Chrome, Edge, Brave).
+(function() {
+  if ("serviceWorker" in navigator && /^https?:$/.test(location.protocol)) {
+    window.addEventListener("load", function() { navigator.serviceWorker.register("sw.js").catch(function() {}); });
+  }
+  var offer = null, dismissed = false;
+  try { dismissed = localStorage.getItem("hoshi-install-dismissed") === "1"; } catch (e) {}
+  var chip = mk("div", "pfinstall"); chip.hidden = true;
+  var go = mk("button", "pfinstall-go", "Install app"); go.type = "button";
+  var no = mk("button", "pfinstall-no", "×"); no.type = "button"; no.setAttribute("aria-label", "Don't show the install button");
+  chip.appendChild(go); chip.appendChild(no);
+  document.body.appendChild(chip);
+  window.addEventListener("beforeinstallprompt", function(e) {
+    e.preventDefault(); offer = e;
+    if (!dismissed) chip.hidden = false;
+  });
+  go.onclick = function() {
+    if (!offer) return;
+    offer.prompt();
+    var done = function() { offer = null; chip.hidden = true; };
+    if (offer.userChoice && offer.userChoice.then) offer.userChoice.then(done, done); else done();
+  };
+  no.onclick = function() { chip.hidden = true; dismissed = true; try { localStorage.setItem("hoshi-install-dismissed", "1"); } catch (e) {} };
+  window.addEventListener("appinstalled", function() { offer = null; chip.hidden = true; });
 })();
 
 // Wake the stream backend as soon as the site opens, and keep it awake while the tab is in
