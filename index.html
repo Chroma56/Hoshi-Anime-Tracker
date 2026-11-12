@@ -1590,9 +1590,7 @@ function detail(a, wantEp) {
           if (found) a.aniId = Number(found);
           return found;
         }).catch(function() { return ""; });
-    return known.then(function(id) {
-      var seriesId = id ? "al" + id : String(a.id || "").replace(/[^A-Za-z0-9_-]/g, "");
-      if (!seriesId) return null;
+    function ask(seriesId) {
       var q = "?series=" + encodeURIComponent(seriesId) + "&episode=" + encodeURIComponent(episodeNumber) + "&lang=" + encodeURIComponent(selectedLang);
       return fetch(STREAM_API_BASE + "/resolve" + q, {
         headers: { "Accept": "application/json" },
@@ -1605,7 +1603,23 @@ function detail(a, wantEp) {
           var videoUrl = explicitVideoUrl({ type: v.format, url: v.url });
           if (!videoUrl) return null;
           return { url: videoUrl, subtitles: Array.isArray(v.subtitles) ? v.subtitles : [], intro: v.intro || null, outro: v.outro || null };
-        });
+        })
+        .catch(function(err) { console.warn("Hoshi Stream API unavailable for " + seriesId + ":", err.message || err); return null; });
+    }
+    return known.then(function(id) {
+      // The embed host files an episode under up to three addresses, and a show can be missing
+      // from one of them. Try them in the order the embed itself prefers: the episode's own
+      // embed id, then the AniList id, then the MAL id.
+      var tries = [];
+      var embedId = megaPlayEpisodeId(ep);
+      if (embedId) tries.push("s2-" + embedId);
+      if (id) tries.push("al" + id);
+      var malId = String(a.malId || (a.raw && a.raw.mal_id) || "");
+      if (/^[1-9]\d{0,9}$/.test(malId)) tries.push("mal" + malId);
+      if (!tries.length) { var own = String(a.id || "").replace(/[^A-Za-z0-9_-]/g, ""); if (own) tries.push(own); }
+      return tries.reduce(function(chain, seriesId) {
+        return chain.then(function(found) { return found || ask(seriesId); });
+      }, Promise.resolve(null));
     }).catch(function(err) { console.warn("Hoshi Stream API unavailable; using embed:", err.message || err); return null; });
   }
   // Stage 5: Hoshi -> Cloudflare /match -> Render -> Anikoto.
