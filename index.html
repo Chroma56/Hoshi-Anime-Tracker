@@ -1392,6 +1392,7 @@ function detail(a, wantEp) {
   function videoCues() {
     if (!activeVideo || !overlay) return;
     var track = currentSubtitleTracks[+subSelect.value];
+    if (track && !track.element) loadSubtitleTrack(track);
     var text = "";
     if (track && track.textTrack) {
       try {
@@ -1418,13 +1419,19 @@ function detail(a, wantEp) {
     subSelect.value = String(found > -1 ? found : -1);
     videoCues();
   }
+  // A track is only listed here. Its file is fetched the first time that track is chosen
+  // (see videoCues), so an episode with 39 languages costs one subtitle request, not 39.
   function attachSubtitle(track) {
     if (!activeVideo || !track || !track.url) return;
-    var t = document.createElement("track"); t.kind = "subtitles"; t.label = track.label || "Subtitles";
-    t.srclang = track.lang || "en"; t.src = track.url;
+    currentSubtitleTracks.push({label: track.label || "Subtitles", lang: track.lang || "en", url: track.url, textTrack: null, element: null});
+  }
+  function loadSubtitleTrack(entry) {
+    if (!activeVideo || !entry || entry.element) return;
+    var t = document.createElement("track"); t.kind = "subtitles"; t.label = entry.label;
+    t.srclang = entry.lang; t.src = entry.url;
     t.addEventListener("load", function() { try { t.track.mode = "hidden"; } catch(e) {} videoCues(); });
     activeVideo.appendChild(t);
-    currentSubtitleTracks.push({label:t.label, textTrack:t.track, element:t});
+    entry.element = t; entry.textTrack = t.track;
     try { t.track.mode = "hidden"; } catch(e) {}
   }
   function directSubtitles(ep) {
@@ -1977,7 +1984,9 @@ function detail(a, wantEp) {
         if (nativeHls) playNative(); else message("HLS playback is not supported by this browser.");
         return;
       }
-      var h = new Hls({startPosition: startAt > 0 ? startAt : -1}); hlsInstance = h;
+      // Read ahead about 30 seconds and never more than a minute. hls.js would otherwise keep
+      // fetching up to ten minutes ahead, which is a lot of requests to a host that rate-limits.
+      var h = new Hls({startPosition: startAt > 0 ? startAt : -1, maxBufferLength: 30, maxMaxBufferLength: 60, backBufferLength: 60}); hlsInstance = h;
       var networkRetries = 0, mediaRecoveries = 0, manifestReady = false;
       h.on(Hls.Events.MANIFEST_PARSED, function() {
         if (manifestReady) return;
