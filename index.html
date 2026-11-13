@@ -318,32 +318,26 @@ html{overflow-x:clip}
 /* The settings panel under the video is retired: with the direct player its options open inside
    the picture, and with an embed there is nothing for them to control. */
 .vplayer>.hdp-panel{display:none!important}
-/* Watch layout: while an episode plays, the video leads, episodes sit in a side panel, details go below */
-.v.watching{max-width:none;display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:0 22px;align-items:start;grid-template-areas:"back back" "player eps" "head eps"}
+/* Watch layout: while an episode plays, the video fills the page from edge to edge and nearly
+   top to bottom. Its bar, the episodes panel and the show's details follow underneath. */
+.v.watching{max-width:none;display:flex;flex-direction:column}
 .v.watching>.vbackdrop{display:none}
-.v.watching>.back{grid-area:back;justify-self:start;margin-bottom:12px}
-.v.watching>.vplayer{grid-area:player;margin-top:0;display:flex;flex-direction:column;min-width:0}
+.v.watching>.back{order:0;align-self:flex-start;margin:0 0 10px}
+.v.watching>.vplayer{order:1;width:100vw;margin:0 0 0 calc(50% - 50vw);border-radius:0;border-left:0;border-right:0;background:#000}
 .v.watching>.vplayer[hidden]{display:none}
-.v.watching .vframe{order:1}
-.v.watching .vplh{order:2;border-bottom:0;border-top:1px solid var(--line);padding:14px 16px}
+/* The picture takes whatever height is left after the Back row and the bar, up to a true 16:9 */
+.v.watching .vframe{aspect-ratio:auto;height:min(56.25vw,calc(100vh - 128px));min-height:220px}
+.v.watching .vframe>.hdp-stage{width:100%;height:100%;max-height:none;aspect-ratio:auto}
+.v.watching .hdp-video{width:100%;height:100%;max-height:none}
+/* The bar spans the full width, but its contents line up with the page below */
+.v.watching .vplh{padding:14px max(var(--mpad),calc((100vw - 1400px)/2));background:#0e0e12}
 .v.watching .vplt{font-size:18px;flex:1 1 260px;min-width:0}
-.v.watching .hdp-panel{order:3}
-.v.watching .hdp-stage{max-height:calc(100vh - 150px)}
-.v.watching .hdp-video{max-height:calc(100vh - 150px)}
-.v.watching>.veps{grid-area:eps;margin-top:0;position:sticky;top:12px;max-height:calc(100vh - 118px);overflow:auto;overscroll-behavior:contain;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px;scrollbar-width:thin;min-width:0}
-.v.watching>.veps .vbar{gap:8px}
-.v.watching>.veps .vbar h2{flex:1 0 100%;margin:0 0 2px}
-.v.watching>.veps .vfind{flex:1 1 120px;width:auto;min-width:0}
-.v.watching>.vhead{grid-area:head;margin-top:26px;min-width:0}
+/* Episodes: the same panel as before, now under the player and as wide as the page */
+.v.watching>.veps{order:2;margin-top:22px;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px;min-width:0}
+.v.watching>.veps .vlist:not(.tiles){display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:0 28px}
+.v.watching>.vhead{order:3;margin-top:26px;min-width:0}
 .v.watching>.vhead .vposter{position:static}
-@media(max-width:1000px){
-.v.watching{display:flex;flex-direction:column;gap:0}
-.v.watching>.back{order:0;align-self:flex-start}
-.v.watching>.vplayer{order:1}
-.v.watching>.veps{order:2;position:relative;top:auto;max-height:none;overflow:visible;margin-top:20px;background:none;border:0;border-radius:0;padding:0}
-.v.watching>.vhead{order:3}
-.v.watching .hdp-stage,.v.watching .hdp-video{max-height:76vh}
-}
+@media(max-width:640px){.v.watching .vframe{height:min(56.25vw,calc(100vh - 150px))}.v.watching>.veps{padding:12px;margin-top:16px}}
 /* "Install app" chip, shown beside the profile button when the browser offers to install Hoshi */
 .pfinstall{position:fixed;top:calc(12px + env(safe-area-inset-top,0px));right:66px;z-index:640;height:40px;display:flex;align-items:center;border-radius:999px;border:1px solid rgba(255,255,255,.14);background:rgba(16,16,18,.72);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);box-shadow:0 8px 24px rgba(0,0,0,.4);overflow:hidden}
 .pfinstall[hidden]{display:none}
