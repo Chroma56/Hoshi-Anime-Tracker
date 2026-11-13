@@ -338,15 +338,42 @@ html{overflow-x:clip}
 .v.watching>.vhead{order:3;margin-top:26px;min-width:0}
 .v.watching>.vhead .vposter{position:static}
 @media(max-width:640px){.v.watching .vframe{height:min(56.25vw,calc(100vh - 150px))}.v.watching>.veps{padding:12px;margin-top:16px}}
-/* "Install app" chip, shown beside the profile button when the browser offers to install Hoshi */
-.pfinstall{position:fixed;top:calc(12px + env(safe-area-inset-top,0px));right:66px;z-index:640;height:40px;display:flex;align-items:center;border-radius:999px;border:1px solid rgba(255,255,255,.14);background:rgba(16,16,18,.72);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);box-shadow:0 8px 24px rgba(0,0,0,.4);overflow:hidden}
-.pfinstall[hidden]{display:none}
-.pfinstall button{background:none;border:0;color:var(--text);font:inherit;font-size:13px;font-weight:700;cursor:pointer;height:100%}
-.pfinstall-go{padding:0 6px 0 16px}
-.pfinstall-no{padding:0 12px 0 6px;color:var(--mute)!important;font-size:17px!important}
-.pfinstall button:hover{background:rgba(255,255,255,.12)}
-@media(max-width:640px){.pfinstall{right:54px;height:36px}}
-@media(display-mode:standalone){.pfinstall{display:none}}
+/* The Hoshi logo, top right on every page: press it to go home */
+.hlogo{position:fixed;top:calc(12px + env(safe-area-inset-top,0px));right:66px;z-index:640;height:40px;box-sizing:border-box;display:flex;align-items:center;gap:8px;padding:0 15px 0 12px;border-radius:999px;border:1px solid rgba(255,255,255,.14);background:rgba(16,16,18,.72);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);box-shadow:0 8px 24px rgba(0,0,0,.4);color:var(--text);text-decoration:none;font:800 15px "Bricolage Grotesque",sans-serif;letter-spacing:-.01em}
+.hlogo:hover{background:rgba(255,255,255,.16)}
+.hlogo svg{width:20px;height:20px;color:#74bfff;flex:none}
+/* "Get the app" chip, beside the logo (never shown inside the app itself) */
+.getapp{position:fixed;top:calc(12px + env(safe-area-inset-top,0px));right:170px;z-index:640;height:40px;display:flex;align-items:center;border-radius:999px;border:1px solid rgba(255,255,255,.14);background:rgba(16,16,18,.72);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);box-shadow:0 8px 24px rgba(0,0,0,.4);overflow:hidden}
+.getapp[hidden]{display:none}
+.getapp button{background:none;border:0;color:var(--text);font:inherit;font-size:13px;font-weight:700;cursor:pointer;height:100%}
+.getapp-go{padding:0 6px 0 16px}
+.getapp-no{padding:0 12px 0 6px;color:var(--mute)!important;font-size:17px!important}
+.getapp button:hover{background:rgba(255,255,255,.12)}
+@media(max-width:640px){.hlogo{right:54px;height:36px;padding:0 9px}.hlogo span{display:none}.getapp{right:98px;height:36px}.getapp-go{padding-left:13px;font-size:12px!important}}
+/* The "Get the app" page */
+.getapp-page{position:fixed;inset:0;z-index:1150;background:var(--bg);overflow-y:auto;overscroll-behavior:contain}
+.getapp-inner{position:relative;max-width:1080px;margin:0 auto;padding:64px var(--mpad) 130px}
+.getapp-x{position:absolute;top:18px;right:var(--mpad)}
+.getapp-hero{display:flex;gap:44px;align-items:center;padding:46px 48px;border:1px solid var(--line);border-radius:22px;background:radial-gradient(620px 300px at 12% 40%,rgba(116,191,255,.16),transparent 70%),var(--panel)}
+.getapp-tile{width:132px;height:132px;flex:none;border-radius:30px;background:#0b0b0c;border:1px solid #2c2c33;display:grid;place-items:center;color:#74bfff;box-shadow:0 0 70px rgba(116,191,255,.28)}
+.getapp-tile svg{width:78px;height:78px}
+.getapp-copy{min-width:0}
+.getapp-kick{font-size:12px;font-weight:800;letter-spacing:.16em;text-transform:uppercase;color:#74bfff}
+.getapp-title{font:800 clamp(30px,4.600vw,52px)/1.04 "Bricolage Grotesque",sans-serif;letter-spacing:-.02em;margin:8px 0 14px;display:block}
+.getapp-title::before{display:none}
+.getapp-lead{color:#c9c9d0;font-size:16px;line-height:1.55;margin:0 0 24px;max-width:56ch}
+.getapp-acts{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px}
+.getapp-dl{text-decoration:none;padding:0 26px 0 22px}
+.getapp-fine{color:var(--mute);font-size:12.500px;line-height:1.5;margin:0 0 6px;max-width:62ch}
+.getapp-browser:empty{display:none}
+.getapp-link{background:none;border:0;padding:0;color:var(--text);font:inherit;font-weight:700;cursor:pointer;text-decoration:underline;text-underline-offset:3px}
+.getapp-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:30px 48px;margin-top:44px;padding:0 6px}
+.getapp-item{display:flex;gap:16px;align-items:flex-start}
+.getapp-icon{width:42px;height:42px;flex:none;border-radius:11px;background:rgba(116,191,255,.12);border:1px solid rgba(116,191,255,.22);color:#74bfff;display:grid;place-items:center}
+.getapp-icon svg{width:21px;height:21px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.getapp-item b{display:block;font:800 16px "Bricolage Grotesque",sans-serif;margin:1px 0 5px}
+.getapp-item p{margin:0;color:var(--mute);font-size:14px;line-height:1.5}
+@media(max-width:760px){.getapp-inner{padding-top:58px}.getapp-hero{flex-direction:column;align-items:flex-start;gap:22px;padding:26px 22px}.getapp-tile{width:88px;height:88px;border-radius:22px}.getapp-tile svg{width:52px;height:52px}.getapp-grid{grid-template-columns:1fr;gap:22px;margin-top:30px}.getapp-lead{font-size:15px}}
 /* Profiles: the button, the page and its dialogs */
 .pfbtn{position:fixed;top:calc(12px + env(safe-area-inset-top,0px));right:16px;z-index:640;width:40px;height:40px;border-radius:50%;border:1px solid rgba(255,255,255,.14);background:rgba(16,16,18,.72);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);color:var(--text);display:grid;place-items:center;cursor:pointer;font:800 15px "Bricolage Grotesque",sans-serif;box-shadow:0 8px 24px rgba(0,0,0,.4);overflow:hidden;padding:0}
 .pfbtn:hover{background:rgba(255,255,255,.16)}
@@ -4052,32 +4079,107 @@ new MutationObserver(function(muts) {
   document.body.appendChild(open); document.body.appendChild(page); document.body.appendChild(filePick);
 })();
 
-// ── Installable app ──
-// Registers the small worker that lets the installed app open offline, and shows an
-// "Install app" button when the browser says Hoshi can be installed (Chrome, Edge, Brave).
+// ── The Hoshi logo (top right, takes you home) and the "Get the app" page ──
 (function() {
+  // The small worker that lets an installed copy open offline.
   if ("serviceWorker" in navigator && /^https?:$/.test(location.protocol)) {
     window.addEventListener("load", function() { navigator.serviceWorker.register("sw.js").catch(function() {}); });
   }
-  var offer = null, dismissed = false;
-  try { dismissed = localStorage.getItem("hoshi-install-dismissed") === "1"; } catch (e) {}
-  var chip = mk("div", "pfinstall"); chip.hidden = true;
-  var go = mk("button", "pfinstall-go", "Install app"); go.type = "button";
-  var no = mk("button", "pfinstall-no", "×"); no.type = "button"; no.setAttribute("aria-label", "Don't show the install button");
+  var STAR = '<svg viewBox="0 0 64 64" aria-hidden="true"><path d="M32 6 C35 24 40 29 58 32 C40 35 35 40 32 58 C29 40 24 35 6 32 C24 29 29 24 32 6 Z" fill="currentColor"/></svg>';
+  var RELEASES = "https://github.com/Chroma56/Hoshi-Anime-Tracker/releases/latest";
+
+  // The logo: on every page, always leads back to the home page.
+  var logo = mk("a", "hlogo"); logo.href = "#home";
+  logo.innerHTML = STAR + "<span>Hoshi</span>";
+  logo.title = "Hoshi home"; logo.setAttribute("aria-label", "Hoshi home");
+  logo.onclick = function() {
+    if (page) closePage();
+    // Already on the home page: go back to the top of it.
+    if (location.hash === "#home" || location.hash === "" || location.hash === "#") window.scrollTo({ top: 0, behavior: REDUCE ? "auto" : "smooth" });
+  };
+  document.body.appendChild(logo);
+
+  // Inside the desktop app, or an installed copy, there is nothing to advertise.
+  var installed = "__TAURI_INTERNALS__" in window || "__TAURI__" in window ||
+    !!(window.matchMedia && matchMedia("(display-mode: standalone)").matches) || navigator.standalone === true;
+  var page = null, offer = null, dismissed = false;
+  function closePage() { if (!page) return; page.remove(); page = null; document.documentElement.style.overflow = ""; }
+  if (installed) { document.documentElement.classList.add("in-app"); return; }
+  try { dismissed = localStorage.getItem("hoshi-app-chip-dismissed") === "1"; } catch (e) {}
+
+  // The browser can install Hoshi itself (Chrome, Edge, Brave, Android): keep the offer for the page.
+  window.addEventListener("beforeinstallprompt", function(e) { e.preventDefault(); offer = e; if (page) drawBrowserInstall(); });
+  window.addEventListener("appinstalled", function() { offer = null; chip.hidden = true; closePage(); });
+
+  var chip = mk("div", "getapp"); chip.hidden = dismissed;
+  var go = mk("button", "getapp-go", "Get the app"); go.type = "button";
+  var no = mk("button", "getapp-no", "×"); no.type = "button"; no.setAttribute("aria-label", "Hide the Get the app button");
   chip.appendChild(go); chip.appendChild(no);
   document.body.appendChild(chip);
-  window.addEventListener("beforeinstallprompt", function(e) {
-    e.preventDefault(); offer = e;
-    if (!dismissed) chip.hidden = false;
-  });
-  go.onclick = function() {
+  no.onclick = function() { chip.hidden = true; try { localStorage.setItem("hoshi-app-chip-dismissed", "1"); } catch (e) {} };
+  go.onclick = openPage;
+
+  var FEATURES = [
+    ['<path d="M5 12.500l4.500 4.500L19 7.500"/>', "Remembers everything", "Continue watching, your library and your profile are kept by the app itself, so no browser setting can wipe them."],
+    ['<rect x="4" y="5" width="16" height="12" rx="2"/><path d="M4 9h16M9 21h6"/>', "A window of its own", "No tabs and no address bar. Hoshi sits in your taskbar and Start menu like any other program."],
+    ['<circle cx="12" cy="12" r="8.500"/><path d="M6 6l12 12"/>', "Pop-ups stay shut", "New windows thrown up by embedded players are refused before they open."],
+    ['<path d="M13 3L5 13.500h6L10 21l8-10.500h-6L13 3z"/>', "Small and quick", "The installer is about one megabyte. It opens fast and uses little memory, because it runs on the web engine Windows already has."],
+    ['<path d="M20 12a8 8 0 1 1-2.400-5.700"/><path d="M20 4v5h-5"/>', "Always current", "The app shows the same Hoshi as this site. New features arrive the next time you open it, with nothing to reinstall."],
+    ['<rect x="7" y="3" width="10" height="18" rx="2"/><path d="M11 18h2"/>', "On your phone too", "Open Hoshi in your phone's browser and choose Add to Home Screen to get the icon and a full-screen app."]
+  ];
+  var installSlot = null;
+  function drawBrowserInstall() {
+    if (!installSlot) return;
+    installSlot.innerHTML = "";
     if (!offer) return;
-    offer.prompt();
-    var done = function() { offer = null; chip.hidden = true; };
-    if (offer.userChoice && offer.userChoice.then) offer.userChoice.then(done, done); else done();
-  };
-  no.onclick = function() { chip.hidden = true; dismissed = true; try { localStorage.setItem("hoshi-install-dismissed", "1"); } catch (e) {} };
-  window.addEventListener("appinstalled", function() { offer = null; chip.hidden = true; });
+    installSlot.appendChild(document.createTextNode("Not on Windows, or don't want to download anything? "));
+    var b = mk("button", "getapp-link", "Install Hoshi from this browser"); b.type = "button";
+    b.onclick = function() {
+      if (!offer) return;
+      offer.prompt();
+      var done = function() { offer = null; drawBrowserInstall(); };
+      if (offer.userChoice && offer.userChoice.then) offer.userChoice.then(done, done); else done();
+    };
+    installSlot.appendChild(b);
+  }
+  function openPage() {
+    if (page) return;
+    page = mk("div", "getapp-page"); page.setAttribute("role", "dialog"); page.setAttribute("aria-label", "Get the Hoshi app");
+    var inner = mk("div", "getapp-inner");
+    var x = mk("button", "pfx getapp-x", "×"); x.type = "button"; x.setAttribute("aria-label", "Close"); x.onclick = closePage;
+    inner.appendChild(x);
+
+    var hero = mk("section", "getapp-hero");
+    var tile = mk("div", "getapp-tile"); tile.innerHTML = STAR;
+    var copy = mk("div", "getapp-copy");
+    copy.appendChild(mk("span", "getapp-kick", "Hoshi for Windows"));
+    copy.appendChild(mk("h2", "getapp-title", "Hoshi, as a real app"));
+    copy.appendChild(mk("p", "getapp-lead", "Everything you do here in the browser, in a program of its own: the same shows, the same player and the same library, with a home on your taskbar and a memory that sticks."));
+    var acts = mk("div", "getapp-acts");
+    var dl = mk("a", "hbtn pri getapp-dl"); dl.href = RELEASES; dl.target = "_blank"; dl.rel = "noopener";
+    dl.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11M7 11l5 5 5-5M5 20h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>Download for Windows';
+    var stay = mk("button", "hbtn", "Keep watching here"); stay.type = "button"; stay.onclick = closePage;
+    acts.appendChild(dl); acts.appendChild(stay);
+    copy.appendChild(acts);
+    copy.appendChild(mk("p", "getapp-fine", "Free. Windows 10 and 11. The download page lists Hoshi-Setup (installs) and Hoshi-Portable (runs without installing). Windows will ask you to confirm, because the app is not code-signed."));
+    installSlot = mk("p", "getapp-fine getapp-browser", ""); copy.appendChild(installSlot); drawBrowserInstall();
+    hero.appendChild(tile); hero.appendChild(copy); inner.appendChild(hero);
+
+    var grid = mk("div", "getapp-grid");
+    FEATURES.forEach(function(f) {
+      var item = mk("div", "getapp-item"), icon = mk("span", "getapp-icon");
+      icon.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true">' + f[0] + "</svg>";
+      var text = mk("div"); text.appendChild(mk("b", "", f[1])); text.appendChild(mk("p", "", f[2]));
+      item.appendChild(icon); item.appendChild(text); grid.appendChild(item);
+    });
+    inner.appendChild(grid);
+    page.appendChild(inner);
+    page.addEventListener("keydown", function(e) { if (e.key === "Escape") closePage(); });
+    document.body.appendChild(page);
+    document.documentElement.style.overflow = "hidden";
+    x.focus();
+  }
+  window.addEventListener("hashchange", closePage);
 })();
 
 // Wake the stream backend as soon as the site opens, and keep it awake while the tab is in
