@@ -1,0 +1,20 @@
+[package]
+name = "hoshi"
+version = "1.0.0"
+description = "Hoshi anime and manga tracker for the desktop"
+edition = "2021"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+# 2.12 or newer: the pop-up handler (on_new_window) used in main.rs is a recent addition.
+tauri = { version = "2.12", features = [] }
+
+# Small and fast: optimise for size, strip symbols, let the linker work across the whole program.
+[profile.release]
+opt-level = "s"
+lto = true
+codegen-units = 1
+strip = true
+panic = "abort"

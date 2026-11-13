@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hoshi</title>
+<style>
+  html, body { height: 100%; margin: 0; }
+  body { background: #0b0b0c; color: #f2f2f3; font: 15px/1.5 system-ui, "Segoe UI", sans-serif; display: grid; place-items: center; text-align: center; }
+  main { max-width: 420px; padding: 24px; }
+  .star { width: 64px; height: 64px; margin: 0 auto 18px; display: block; }
+  .star.wait { animation: pulse 1.4s ease-in-out infinite; }
+  @keyframes pulse { 50% { opacity: .45; transform: scale(.94); } }
+  h1 { font-size: 22px; margin: 0 0 8px; }
+  p { color: #8b8b92; margin: 0 0 22px; }
+  button { background: #f2f2f3; color: #0b0b0c; border: 0; border-radius: 8px; padding: 11px 26px; font: inherit; font-weight: 700; cursor: pointer; }
+  button:hover { background: #fff; }
+  [hidden] { display: none; }
+  @media (prefers-reduced-motion: reduce) { .star.wait { animation: none; } }
+</style>
+</head>
+<body>
+<!-- The app's start page. It checks that the site can be reached and then opens it, so
+     being offline shows a friendly message instead of a browser error page. -->
+<main>
+  <svg id="star" class="star wait" viewBox="0 0 64 64" aria-hidden="true"><path d="M32 6 C35 24 40 29 58 32 C40 35 35 40 32 58 C29 40 24 35 6 32 C24 29 29 24 32 6 Z" fill="#74bfff"/></svg>
+  <div id="offline" hidden>
+    <h1>Hoshi can't reach the internet</h1>
+    <p>Check your connection, then try again. Your library and progress are safe on this computer.</p>
+    <button type="button" id="retry">Try again</button>
+  </div>
+</main>
+<script>
+  var APP_URL = "https://chroma56.github.io/Hoshi-Anime-Tracker/";
+  var star = document.getElementById("star"), offline = document.getElementById("offline");
+  function open() {
+    offline.hidden = true; star.classList.add("wait");
+    var timer = setTimeout(fail, 12000), settled = false;
+    // "no-cors": only whether the site answers matters here, not what it says.
+    fetch(APP_URL, { mode: "no-cors", cache: "no-store" }).then(function () {
+      if (settled) return; settled = true; clearTimeout(timer);
+      location.replace(APP_URL);
+    }, function () { if (!settled) fail(); });
+    function fail() { settled = true; clearTimeout(timer); star.classList.remove("wait"); offline.hidden = false; }
+  }
+  document.getElementById("retry").onclick = open;
+  // Come back by itself when the connection returns.
+  window.addEventListener("online", open);
+  open();
+</script>
+</body>
+</html>
