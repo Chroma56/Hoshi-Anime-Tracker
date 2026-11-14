@@ -338,18 +338,70 @@ html{overflow-x:clip}
 .v.watching>.vhead{order:3;margin-top:26px;min-width:0}
 .v.watching>.vhead .vposter{position:static}
 @media(max-width:640px){.v.watching .vframe{height:min(56.25vw,calc(100vh - 150px))}.v.watching>.veps{padding:12px;margin-top:16px}}
+/* Settings: the button (top right, beside the profile button) and the page */
+.setbtn{position:fixed;top:calc(12px + env(safe-area-inset-top,0px));right:66px;z-index:640;width:40px;height:40px;border-radius:50%;border:1px solid rgba(255,255,255,.14);background:rgba(16,16,18,.72);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);color:var(--text);display:grid;place-items:center;cursor:pointer;box-shadow:0 8px 24px rgba(0,0,0,.4);padding:0}
+.setbtn:hover{background:rgba(255,255,255,.16)}
+.setbtn svg{width:19px;height:19px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.setpage{position:fixed;inset:0;z-index:1150;background:var(--bg);overflow-y:auto;overscroll-behavior:contain;scroll-padding-top:90px}
+.sethead{position:sticky;top:0;z-index:2;display:flex;justify-content:space-between;align-items:center;gap:16px;max-width:1200px;margin:0 auto;padding:22px var(--mpad) 14px;background:linear-gradient(var(--bg) 78%,transparent)}
+.sethead h2{margin:0;font-size:28px;display:flex;align-items:center;gap:10px}
+.sethead h2::before{content:"";width:5px;height:24px;border-radius:3px;background:var(--text)}
+.setwrap{display:grid;grid-template-columns:190px minmax(0,1fr);gap:34px;max-width:1200px;margin:0 auto;padding:6px var(--mpad) 140px;align-items:start}
+.setnav{position:sticky;top:84px;display:grid;gap:2px}
+.setnav button{text-align:left;background:none;border:0;border-left:2px solid transparent;border-radius:0 9px 9px 0;color:var(--mute);font:inherit;font-size:14px;padding:9px 12px;cursor:pointer}
+.setnav button:hover{color:var(--text);background:rgba(255,255,255,.05)}
+.setnav button.on{color:var(--text);font-weight:700;background:rgba(116,191,255,.1);border-left-color:#74bfff}
+.setmain{max-width:860px;min-width:0}
+.setsec{margin-bottom:38px;scroll-margin-top:90px}
+.setsec h3{font:800 19px "Bricolage Grotesque",sans-serif;margin:0 0 10px}
+.setsec-n{color:var(--mute);font-size:13px;margin:-4px 0 12px}
+.setcard{border:1px solid var(--line);border-radius:14px;background:var(--panel);overflow:hidden}
+.setrow{display:flex;justify-content:space-between;align-items:center;gap:24px;padding:16px 18px;border-top:1px solid var(--line)}
+.setrow:first-child{border-top:0}
+.setrow-t{min-width:0;flex:1}
+.setrow-t b{display:block;font-size:14.500px;margin-bottom:3px}
+.setrow-t p{margin:0;color:var(--mute);font-size:12.500px;line-height:1.5;max-width:60ch}
+.setrow-c{flex:none;max-width:100%}
+.setcounts{margin-top:8px!important;color:#c9c9d0!important}
+.setseg{display:inline-flex;gap:3px;padding:3px;border:1px solid var(--line);border-radius:10px;background:#0b0b0c}
+.setseg button{background:none;border:0;border-radius:7px;color:var(--mute);font:inherit;font-size:13px;font-weight:700;padding:7px 13px;cursor:pointer;white-space:nowrap}
+.setseg button.on{background:#2a2a30;color:var(--text)}
+.settog{width:38px;height:22px;border-radius:7px;border:1px solid #3b3b42;background:#1f1f24;position:relative;cursor:pointer;padding:0;display:block}
+.settog::after{content:"";position:absolute;top:3px;left:3px;width:14px;height:14px;border-radius:4px;background:#77777f;transition:transform .15s ease,background .15s ease}
+.settog.on{background:#f2f2f3;border-color:#f2f2f3}
+.settog.on::after{transform:translateX(16px);background:#0b0b0c}
+.setsel{background:#0b0b0c;color:var(--text);border:1px solid #3b3b42;border-radius:9px;padding:9px 12px;font:inherit;font-size:13.500px;font-weight:700;min-width:170px;max-width:100%}
+.setbtns{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+.setdanger{color:#ff9d9d;border-color:#5a2a2a}
+.setdanger:hover{background:#3a1c1c}
+.setkeys{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:2px 26px;padding:14px 18px}
+.setkey{display:flex;justify-content:space-between;align-items:center;gap:14px;padding:7px 0;font-size:13.500px;color:#c9c9d0}
+.setkey-k{white-space:nowrap;color:var(--mute)}
+.setkey kbd,.setpage kbd{display:inline-block;min-width:20px;text-align:center;border:1px solid #3b3b42;border-bottom-width:2px;border-radius:6px;background:#1c1c20;color:var(--text);padding:2px 6px;font:700 11.500px "DM Sans",sans-serif}
+.setlink{display:flex;justify-content:space-between;align-items:center;gap:16px;width:100%;box-sizing:border-box;padding:15px 18px;border:0;border-top:1px solid var(--line);background:none;color:var(--text);text-decoration:none;font:inherit;text-align:left;cursor:pointer}
+.setlink:first-child{border-top:0}
+.setlink:hover{background:rgba(255,255,255,.04)}
+.setlink-t b{display:block;font-size:14.500px;margin-bottom:2px}
+.setlink-t small{color:var(--mute);font-size:12.500px}
+.setlink-a{color:var(--mute);font-size:17px}
+.setabout{padding:18px}
+.setabout b{font:800 17px "Bricolage Grotesque",sans-serif}
+.setabout p{color:#c9c9d0;font-size:13.500px;line-height:1.55;margin:9px 0 0;max-width:70ch}
+.setabout a{color:var(--text)}
+@media(prefers-reduced-motion:reduce){.settog::after{transition:none}}
+@media(max-width:760px){.setbtn{right:54px;width:36px;height:36px}.setwrap{grid-template-columns:1fr;gap:10px}.setnav{position:static;display:flex;overflow-x:auto;gap:4px;padding-bottom:8px;scrollbar-width:none}.setnav button{border-left:0;border-radius:999px;white-space:nowrap;border:1px solid var(--line);padding:7px 13px}.setnav button.on{border-color:#74bfff}.setrow{flex-direction:column;align-items:flex-start;gap:12px}.setbtns{justify-content:flex-start}.setsel{min-width:0;width:100%}.setrow-c{width:100%}}
 /* The Hoshi logo, top right on every page: press it to go home */
-.hlogo{position:fixed;top:calc(12px + env(safe-area-inset-top,0px));right:66px;z-index:640;height:40px;box-sizing:border-box;display:flex;align-items:center;gap:8px;padding:0 15px 0 12px;border-radius:999px;border:1px solid rgba(255,255,255,.14);background:rgba(16,16,18,.72);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);box-shadow:0 8px 24px rgba(0,0,0,.4);color:var(--text);text-decoration:none;font:800 15px "Bricolage Grotesque",sans-serif;letter-spacing:-.01em}
+.hlogo{position:fixed;top:calc(12px + env(safe-area-inset-top,0px));right:116px;z-index:640;height:40px;box-sizing:border-box;display:flex;align-items:center;gap:8px;padding:0 15px 0 12px;border-radius:999px;border:1px solid rgba(255,255,255,.14);background:rgba(16,16,18,.72);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);box-shadow:0 8px 24px rgba(0,0,0,.4);color:var(--text);text-decoration:none;font:800 15px "Bricolage Grotesque",sans-serif;letter-spacing:-.01em}
 .hlogo:hover{background:rgba(255,255,255,.16)}
 .hlogo svg{width:20px;height:20px;color:#74bfff;flex:none}
 /* "Get the app" chip, beside the logo (never shown inside the app itself) */
-.getapp{position:fixed;top:calc(12px + env(safe-area-inset-top,0px));right:170px;z-index:640;height:40px;display:flex;align-items:center;border-radius:999px;border:1px solid rgba(255,255,255,.14);background:rgba(16,16,18,.72);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);box-shadow:0 8px 24px rgba(0,0,0,.4);overflow:hidden}
+.getapp{position:fixed;top:calc(12px + env(safe-area-inset-top,0px));right:220px;z-index:640;height:40px;display:flex;align-items:center;border-radius:999px;border:1px solid rgba(255,255,255,.14);background:rgba(16,16,18,.72);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);box-shadow:0 8px 24px rgba(0,0,0,.4);overflow:hidden}
 .getapp[hidden]{display:none}
 .getapp button{background:none;border:0;color:var(--text);font:inherit;font-size:13px;font-weight:700;cursor:pointer;height:100%}
 .getapp-go{padding:0 6px 0 16px}
 .getapp-no{padding:0 12px 0 6px;color:var(--mute)!important;font-size:17px!important}
 .getapp button:hover{background:rgba(255,255,255,.12)}
-@media(max-width:640px){.hlogo{right:54px;height:36px;padding:0 9px}.hlogo span{display:none}.getapp{right:98px;height:36px}.getapp-go{padding-left:13px;font-size:12px!important}}
+@media(max-width:640px){.hlogo{right:98px;height:36px;padding:0 9px}.hlogo span{display:none}.getapp{right:142px;height:36px}.getapp-go{padding-left:13px;font-size:12px!important}}
 /* The "Get the app" page */
 .getapp-page{position:fixed;inset:0;z-index:1150;background:var(--bg);overflow-y:auto;overscroll-behavior:contain}
 .getapp-inner{position:relative;max-width:1080px;margin:0 auto;padding:64px var(--mpad) 130px}
@@ -1451,6 +1503,14 @@ function detail(a, wantEp) {
   var currentSubtitleTracks = [], localSubtitleUrl = null, currentDirectUrl = "", currentEpisode = null;
   function loadPlayerPrefs() { try { return JSON.parse(localStorage.getItem("hoshi-player-prefs") || "{}"); } catch(e) { return {}; } }
   var playerPrefs = loadPlayerPrefs();
+  // The Settings page changed something: use it straight away, without reopening the title.
+  function prefsChanged() {
+    if (!root.isConnected) { window.removeEventListener("hoshi-prefs", prefsChanged); return; }
+    playerPrefs = loadPlayerPrefs();
+    autoNextInput.checked = playerPrefs.autoplayNext !== false; autoSkipInput.checked = playerPrefs.autoSkipIntro === true;
+    speedSelect.value = playerPrefs.speed || "1";
+  }
+  window.addEventListener("hoshi-prefs", prefsChanged);
   function savePlayerPrefs() { try { localStorage.setItem("hoshi-player-prefs", JSON.stringify(playerPrefs)); } catch(e) {} }
   sizeInput.value = playerPrefs.size || 24; colorInput.value = playerPrefs.color || "#ffffff";
   bgInput.value = playerPrefs.bg == null ? 55 : playerPrefs.bg;
@@ -1977,7 +2037,7 @@ function detail(a, wantEp) {
     onCleanup(function() { clearTimeout(g.hold); clearTimeout(g.timer); });
 
     // ── Keyboard (while the player has focus) ──
-    stage.addEventListener("keydown", function(e) {
+    function onKey(e) {
       if (e.ctrlKey || e.metaKey || e.altKey) return;
       if (e.key === "Escape" && !menu.hidden) { closeMenu(); stage.focus({preventScroll:true}); e.preventDefault(); return; }
       var tag = e.target.tagName;
@@ -2007,7 +2067,19 @@ function detail(a, wantEp) {
       else return;
       e.preventDefault();
       wake();
-    });
+    }
+    stage.addEventListener("keydown", onKey);
+    // The same keys anywhere on the page while this player is up, unless you are typing or a
+    // page such as Settings, Profiles or the manga reader is open on top.
+    function pageKey(e) {
+      if (stage.contains(e.target) || !stage.isConnected) return;
+      var el = e.target, tag = el && el.tagName;
+      if (tag === "INPUT" || tag === "SELECT" || tag === "TEXTAREA" || (el && el.isContentEditable)) return;
+      if (document.querySelector(".setpage, .pfpage:not([hidden]), .getapp-page, .rdr, .searchbar:not([hidden]), .player-overlay:not([hidden])")) return;
+      onKey(e);
+    }
+    document.addEventListener("keydown", pageKey);
+    onCleanup(function() { document.removeEventListener("keydown", pageKey); });
 
     // ── Progress: saved like the embed's, so an episode resumes where it stopped ──
     var saved = PROG[a.id] && PROG[a.id].watch && PROG[a.id].watch[episodeNumber];
@@ -2277,7 +2349,7 @@ function detail(a, wantEp) {
   function playIdx(i, quiet) {
     var ep = episodes[i], u = streamFor(ep, lang), direct = episodeDirectUrl(ep, lang);
     if (!u && !direct) { alert("No " + lang.toUpperCase() + " stream available for this episode."); return; }
-    if (curIdx !== i) preferEmbed = false;
+    if (curIdx !== i) preferEmbed = playerPrefs.defaultPlayer === "embed"; // Settings > Watching > Player
     destroyDirect(); directMode = false; directPanel.hidden = true; sourceSwitch.hidden = true; directButton.hidden = true; currentEpisode = ep;
     curIdx = i;
     var n = epNum(ep, i);
@@ -4077,6 +4149,186 @@ new MutationObserver(function(muts) {
   page.addEventListener("click", function(e) { if (e.target.closest && e.target.closest("a.card")) setTimeout(closePage, 0); });
   drawOpen();
   document.body.appendChild(open); document.body.appendChild(page); document.body.appendChild(filePick);
+})();
+
+// ── Settings: one page for the choices that used to be scattered (player menu, reader bar) ──
+(function() {
+  var GEAR = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/></svg>';
+  var REPO = "https://github.com/Chroma56/Hoshi-Anime-Tracker";
+  function prefs() { try { var p = JSON.parse(localStorage.getItem("hoshi-player-prefs") || "{}"); return p && typeof p === "object" ? p : {}; } catch (e) { return {}; } }
+  // Saves one player preference and tells an open title page to pick it up straight away.
+  function setPref(key, value) {
+    var p = prefs(); p[key] = value;
+    try { localStorage.setItem("hoshi-player-prefs", JSON.stringify(p)); } catch (e) {}
+    try { window.dispatchEvent(new Event("hoshi-prefs")); } catch (e) {}
+  }
+  function stored(key, fallback) { try { return localStorage.getItem(key) || fallback; } catch (e) { return fallback; } }
+  function store(key, value) { try { localStorage.setItem(key, value); } catch (e) {} }
+
+  // ── Controls ──
+  function segmented(options, value, onPick) {
+    var box = mk("div", "setseg"); box.setAttribute("role", "group");
+    options.forEach(function(o) {
+      var b = mk("button", o[0] === value ? "on" : "", o[1]); b.type = "button"; b.setAttribute("aria-pressed", String(o[0] === value));
+      b.onclick = function() {
+        Array.prototype.forEach.call(box.children, function(c) { c.className = ""; c.setAttribute("aria-pressed", "false"); });
+        b.className = "on"; b.setAttribute("aria-pressed", "true"); onPick(o[0]);
+      };
+      box.appendChild(b);
+    });
+    return box;
+  }
+  function toggle(on, label, onFlip) {
+    var b = mk("button", "settog" + (on ? " on" : "")); b.type = "button";
+    b.setAttribute("role", "switch"); b.setAttribute("aria-checked", String(on)); b.setAttribute("aria-label", label);
+    b.onclick = function() { on = !on; b.classList.toggle("on", on); b.setAttribute("aria-checked", String(on)); onFlip(on); };
+    return b;
+  }
+  function select(options, value, label, onPick) {
+    var s = mk("select", "setsel"); s.setAttribute("aria-label", label);
+    options.forEach(function(o) { var op = mk("option", "", o[1]); op.value = o[0]; s.appendChild(op); });
+    s.value = value; if (s.selectedIndex < 0) s.selectedIndex = 0;
+    s.onchange = function() { onPick(s.value); };
+    return s;
+  }
+  function row(title, note, control) {
+    var r = mk("div", "setrow"), t = mk("div", "setrow-t");
+    t.appendChild(mk("b", "", title)); if (note) t.appendChild(mk("p", "", note));
+    r.appendChild(t); if (control) { var c = mk("div", "setrow-c"); c.appendChild(control); r.appendChild(c); }
+    return r;
+  }
+  function section(id, title, note, rows) {
+    var s = mk("section", "setsec"); s.id = "set-" + id;
+    s.appendChild(mk("h3", "", title)); if (note) s.appendChild(mk("p", "setsec-n", note));
+    var card = mk("div", "setcard"); rows.forEach(function(r) { card.appendChild(r); }); s.appendChild(card);
+    return s;
+  }
+  function action(label, danger, fn) { var b = mk("button", "vbtn sm" + (danger ? " setdanger" : ""), label); b.type = "button"; b.onclick = fn; return b; }
+
+  var SHORTCUTS = [
+    ["Space", "K", "Play / pause"], ["J", "L", "Back / forward 10 seconds"], ["←", "→", "Back / forward 5 seconds"],
+    ["↑", "↓", "Volume up / down"], ["M", "", "Mute"], ["F", "", "Full screen"],
+    ["C", "", "Cycle subtitles"], ["S", "", "Skip intro"], ["N", "P", "Next / previous episode"],
+    ["0", "9", "Jump to 0% – 90%"], ["Esc", "", "Close the player's settings"], ["Double click", "", "Full screen"]
+  ];
+  var SUB_LANGS = ["English", "Spanish", "French", "German", "Italian", "Portuguese", "Arabic", "Russian", "Indonesian", "Japanese"];
+
+  var page = null;
+  function close() { if (!page) return; page.remove(); page = null; document.documentElement.style.overflow = ""; }
+  function open(jumpTo) {
+    if (page) close();
+    var p = prefs();
+    page = mk("div", "setpage"); page.setAttribute("role", "dialog"); page.setAttribute("aria-label", "Settings");
+    var wrap = mk("div", "setwrap"), nav = mk("nav", "setnav"), main = mk("div", "setmain");
+    nav.setAttribute("aria-label", "Settings sections");
+    var head = mk("div", "sethead"); head.appendChild(mk("h2", "", "Settings"));
+    var x = mk("button", "pfx", "×"); x.type = "button"; x.setAttribute("aria-label", "Close settings"); x.onclick = close; head.appendChild(x);
+
+    var sections = [];
+    sections.push(["watching", "Watching", section("watching", "Watching", "", [
+      row("Player", "Hoshi's player has keyboard shortcuts, skip intro and its own subtitle styling. The embed is the source's own player, used as the fallback.",
+        segmented([["direct", "Hoshi player"], ["embed", "Embed"]], p.defaultPlayer === "embed" ? "embed" : "direct", function(v) { setPref("defaultPlayer", v); })),
+      row("Subtitle language", "Picked automatically when the stream has it.",
+        select([["off", "Off"]].concat(SUB_LANGS.map(function(l) { return [l, l]; })), p.subtitle && SUB_LANGS.indexOf(p.subtitle) > -1 ? p.subtitle : (p.subtitle === "off" ? "off" : "English"), "Subtitle language", function(v) { setPref("subtitle", v); })),
+      row("Playback speed", "The speed episodes start at.",
+        select([["0.5", "0.5×"], ["0.75", "0.75×"], ["1", "Normal"], ["1.25", "1.25×"], ["1.5", "1.5×"], ["2", "2×"]], String(p.speed || "1"), "Playback speed", function(v) { setPref("speed", v); })),
+      row("Autoplay next episode", "Counts down when an episode ends, or while the credits roll.",
+        toggle(p.autoplayNext !== false, "Autoplay next episode", function(on) { setPref("autoplayNext", on); })),
+      row("Skip intros automatically", "Only for episodes where the source marks the opening.",
+        toggle(p.autoSkipIntro === true, "Skip intros automatically", function(on) { setPref("autoSkipIntro", on); }))
+    ])]);
+    sections.push(["reading", "Reading", section("reading", "Reading", "", [
+      row("Reading mode", "Scroll reads top to bottom. Single page shows one page at a time.",
+        segmented([["scroll", "Scroll"], ["page", "Single page"]], stored("hoshi-reader-mode", "scroll") === "page" ? "page" : "scroll", function(v) { store("hoshi-reader-mode", v); })),
+      row("Page fit", "How a page is sized in the reader.",
+        select([["width", "Fit width"], ["screen", "Fit screen"], ["original", "Original size"]], stored("hoshi-reader-fit", "width"), "Page fit", function(v) { store("hoshi-reader-fit", v); })),
+      row("Manga source", "Auto checks each source for the title and reads from the one that is furthest along.",
+        select(HOSHI_PROVIDERS, mangaProvider(), "Manga source", setMangaProvider)),
+      row("Chapter language", "Which translation to list chapters in.",
+        select(HOSHI_LANGUAGES, mangaLanguage(), "Chapter language", setMangaLanguage))
+    ])]);
+    var counts = mk("p", "setcounts", "");
+    function drawCounts() { counts.textContent = Object.keys(LIB).length + " in library · " + Object.keys(PROG).length + " shows in Continue watching · " + Object.keys(RP).length + " series in reading progress"; }
+    drawCounts();
+    function wipe(what, target, save) {
+      return function() {
+        if (!confirm("Clear " + what + " on this device? This cannot be undone.")) return;
+        Object.keys(target).forEach(function(k) { delete target[k]; }); save(); drawCounts();
+        if (VIEW === "home") { drawCW(); drawCR(); } if (VIEW === "library") drawLib();
+      };
+    }
+    var backup = mk("div", "setbtns");
+    backup.appendChild(action("Open profiles", false, function() { close(); var b = document.querySelector(".pfbtn"); if (b) b.click(); }));
+    var clears = mk("div", "setbtns");
+    clears.appendChild(action("Clear Continue watching", true, wipe("Continue watching", PROG, saveProg)));
+    clears.appendChild(action("Clear reading progress", true, wipe("your reading progress", RP, saveRP)));
+    clears.appendChild(action("Clear library", true, wipe("your library", LIB, saveLib)));
+    var dataRow = row("Kept in this browser", "Hoshi has no accounts. Your library and progress are stored on this device only.", null); dataRow.querySelector(".setrow-t").appendChild(counts);
+    sections.push(["data", "Your data", section("data", "Your data", "", [
+      dataRow,
+      row("Back up or move", "Share as file saves your profile, library and progress. Importing that file as “Mine” restores them here or on another device.", backup),
+      row("Clear", "Each button removes one thing from this device.", clears)
+    ])]);
+    var keys = mk("div", "setkeys");
+    SHORTCUTS.forEach(function(s) {
+      var item = mk("div", "setkey"), k = mk("span", "setkey-k");
+      k.appendChild(mk("kbd", "", s[0])); if (s[1]) { k.appendChild(document.createTextNode(s[2].indexOf("0%") > -1 ? " – " : " / ")); k.appendChild(mk("kbd", "", s[1])); }
+      item.appendChild(k); item.appendChild(mk("span", "", s[2])); keys.appendChild(item);
+    });
+    var keySec = mk("section", "setsec"); keySec.id = "set-keyboard";
+    keySec.appendChild(mk("h3", "", "Keyboard")); keySec.appendChild(mk("p", "setsec-n", "For Hoshi's player. They work whenever an episode is playing and you are not typing in a box."));
+    var keyCard = mk("div", "setcard"); keyCard.appendChild(keys); keySec.appendChild(keyCard);
+    sections.push(["keyboard", "Keyboard", keySec]);
+
+    function linkRow(title, note, href, onClick) {
+      var a = mk(href ? "a" : "button", "setlink"); if (href) { a.href = href; if (/^https:/.test(href)) { a.target = "_blank"; a.rel = "noopener"; } } else { a.type = "button"; a.onclick = onClick; }
+      var t = mk("span", "setlink-t"); t.appendChild(mk("b", "", title)); t.appendChild(mk("small", "", note));
+      a.appendChild(t); a.appendChild(mk("span", "setlink-a", "→")); return a;
+    }
+    var help = mk("section", "setsec"); help.id = "set-help"; help.appendChild(mk("h3", "", "Help"));
+    var helpCard = mk("div", "setcard");
+    helpCard.appendChild(linkRow("Guides", "How watching, reading, profiles and the app work.", "docs.html"));
+    helpCard.appendChild(linkRow("Keyboard and player", "Everything the player can do.", "docs.html#player"));
+    if (document.querySelector(".getapp-go")) helpCard.appendChild(linkRow("Hoshi for Windows", "The same Hoshi in a window of its own.", "", function() { close(); document.querySelector(".getapp-go").click(); }));
+    helpCard.appendChild(linkRow("Terms, privacy and copyright", "What Hoshi is, what it keeps, and how to report content.", "docs.html#policies"));
+    helpCard.appendChild(linkRow("Source code", "The site, the backend and the desktop app, on GitHub.", REPO));
+    help.appendChild(helpCard); sections.push(["help", "Help", help]);
+
+    var about = mk("section", "setsec"); about.id = "set-about"; about.appendChild(mk("h3", "", "About"));
+    var aboutCard = mk("div", "setcard setabout");
+    aboutCard.appendChild(mk("b", "", "Hoshi"));
+    aboutCard.appendChild(mk("p", "", "An anime and manga tracker. Titles, artwork and schedules come from AniList and the Hoshi catalogue; chapters come from MangaDex and other community sources; episodes come from third-party hosts."));
+    aboutCard.appendChild(mk("p", "", "Hoshi does not upload or store any video or pages. When its own player is used, a relay passes the stream along from the third-party host as it is requested. Hoshi is not affiliated with any source, studio, publisher or streaming service."));
+    var agree = mk("p", "", "By using Hoshi you agree to its "); var al = mk("a", "", "terms, copyright policy and privacy policy"); al.href = "docs.html#policies"; agree.appendChild(al); agree.appendChild(document.createTextNode("."));
+    aboutCard.appendChild(agree);
+    about.appendChild(aboutCard); sections.push(["about", "About", about]);
+
+    sections.forEach(function(s) {
+      var b = mk("button", "", s[1]); b.type = "button";
+      b.onclick = function() { s[2].scrollIntoView({ behavior: REDUCE ? "auto" : "smooth", block: "start" }); };
+      nav.appendChild(b); main.appendChild(s[2]);
+    });
+    // Highlight the section in view.
+    function mark() {
+      var top = page.scrollTop + 140, current = 0;
+      sections.forEach(function(s, i) { if (s[2].offsetTop <= top) current = i; });
+      Array.prototype.forEach.call(nav.children, function(b, i) { b.className = i === current ? "on" : ""; });
+    }
+    page.addEventListener("scroll", mark, { passive: true });
+    wrap.appendChild(nav); wrap.appendChild(main);
+    page.appendChild(head); page.appendChild(wrap);
+    page.addEventListener("keydown", function(e) { if (e.key === "Escape") close(); });
+    document.body.appendChild(page); document.documentElement.style.overflow = "hidden";
+    mark(); x.focus();
+    if (jumpTo) { var target = document.getElementById("set-" + jumpTo); if (target) target.scrollIntoView({ block: "start" }); }
+  }
+
+  var btn = mk("button", "setbtn"); btn.type = "button"; btn.innerHTML = GEAR;
+  btn.title = "Settings"; btn.setAttribute("aria-label", "Settings");
+  btn.onclick = function() { open(); };
+  document.body.appendChild(btn);
+  window.addEventListener("hashchange", close);
+  window.__hoshiSettings = open;
 })();
 
 // ── The Hoshi logo (top right, takes you home) and the "Get the app" page ──
