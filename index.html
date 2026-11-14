@@ -637,6 +637,15 @@ html{overflow-x:clip}
 .pfmenu button{background:none;border:0;color:var(--text);font:inherit;font-weight:700;text-align:left;padding:11px 14px;border-radius:9px;cursor:pointer}
 .pfmenu button:hover,.pfmenu button:focus-visible{background:rgba(255,255,255,.1)}
 @media(max-width:640px){.setbtn{display:none}.hlogo{right:54px}.getapp{right:100px}}
+/* Loading placeholders */
+.skel{pointer-events:none}
+.skel .poster,.skel .schposter,.sk-line,.hero.skel{background:linear-gradient(100deg,#18181b 30%,#232328 50%,#18181b 70%);background-size:200% 100%;animation:skel 1.4s linear infinite}
+.skel .poster:hover{outline:0}
+.sk-line{display:block;height:10px;border-radius:5px;margin:10px 0 0;width:85%}
+.sk-line.s{width:50%;margin-top:7px}
+.sch.skel{cursor:default}.sch.skel .schbody{min-height:150px}.sch.skel .schinfo{padding-top:4px}
+@keyframes skel{from{background-position:200% 0}to{background-position:-200% 0}}
+@media(prefers-reduced-motion:reduce){.skel .poster,.skel .schposter,.sk-line,.hero.skel{animation:none}}
 </style>
 </head>
 <body>
@@ -704,6 +713,26 @@ var SAMPLE = [
 
 var GENRES = ["Action", "Adventure", "Comedy", "Drama", "Fantasy", "Romance", "Sci-Fi", "Slice of Life", "Mystery", "Sports"];
 var data = SAMPLE;
+
+// Loading placeholders: grey shapes in the real layout while data is on its way. The real content
+// replaces them (fill() and friends clear the container), so nothing here needs removing by hand.
+function skelCard(cls) {
+  var c = mk("div", (cls || "card") + " skel"); c.setAttribute("aria-hidden", "true");
+  c.appendChild(mk("div", "poster")); c.appendChild(mk("span", "sk-line")); c.appendChild(mk("span", "sk-line s"));
+  return c;
+}
+function skelRow(el, n, cls) { if (!el) return; el.innerHTML = ""; for (var i = 0; i < n; i++) el.appendChild(skelCard(cls)); }
+function skelSch(el, n) {
+  if (!el) return; el.innerHTML = "";
+  for (var i = 0; i < n; i++) {
+    var c = mk("div", "sch skel"), b = mk("div", "schbody"), inf = mk("div", "schinfo");
+    c.setAttribute("aria-hidden", "true");
+    b.appendChild(mk("div", "schposter")); inf.appendChild(mk("span", "sk-line")); inf.appendChild(mk("span", "sk-line s")); inf.appendChild(mk("span", "sk-line"));
+    b.appendChild(inf); c.appendChild(b); el.appendChild(c);
+  }
+}
+["trending", "season", "genre", "more"].forEach(function(id) { skelRow(document.getElementById(id), 8); });
+(function() { var hr = document.getElementById("hero"); if (hr) { hr.hidden = false; hr.classList.add("skel"); hr.setAttribute("aria-hidden", "true"); } })();
 
 function rp(im, a) { im.referrerPolicy = "no-referrer"; }
 function card(a, rank) {
@@ -935,7 +964,7 @@ function renderHero(list) {
   if (!h) return;
   clearInterval(HERO_T); HERO_T = 0;
   var items = (list || []).filter(function(a) { return a.img; }).slice(0, 5);
-  h.innerHTML = "";
+  h.innerHTML = ""; h.classList.remove("skel"); h.removeAttribute("aria-hidden");
   if (!items.length) { h.hidden = true; return; }
   h.hidden = false;
   HERO_I = 0;
@@ -1174,6 +1203,7 @@ function run() {
   if (!q) { browse(t, false); return; }
   var c = document.getElementById("count");
   if (c) c.textContent = "Searching\u2026";
+  skelRow(document.getElementById("grid"), 12, "dc");
   live().then(function(l) { if (t === tok) draw(l); }).catch(function() { local().then(draw); });
 }
 
@@ -2941,6 +2971,7 @@ function loadMangaSection() {
   var mManga  = document.getElementById("m-manga");
   var mManhua = document.getElementById("m-manhua");
   if (!mTrend) return;
+  skelRow(mTrend, 8); skelRow(mManhwa, 8); skelRow(mManga, 8); skelRow(mManhua, 8);
   Promise.all([trendingMangaAni(""), trendingMangaAni("KR"), trendingMangaAni("JP"), trendingMangaAni("CN")])
     .then(function(r) {
       if (!r[0].length) throw new Error("no results");
@@ -2956,6 +2987,7 @@ function loadMangaSection() {
     .catch(function(err) {
       console.error("Manga load failed:", err);
       MANGA_LOADED = false;
+      [mManhwa, mManga, mManhua].forEach(function(r) { if (r) r.innerHTML = ""; });
       if (mTrend) mTrend.innerHTML = "<p class=\"sub\">Couldn\u2019t load trending manga right now.</p>";
     });
 }
@@ -3481,7 +3513,7 @@ function brVars(page) {
 }
 function browse(t, append) {
   var c = document.getElementById("count");
-  if (!append) { BR.page = 1; BR.list = []; if (c) c.textContent = "Loading\u2026"; }
+  if (!append) { BR.page = 1; BR.list = []; if (c) c.textContent = "Loading\u2026"; skelRow(document.getElementById("grid"), 12, "dc"); }
   return cachedQuery(BQ, brVars(BR.page)).then(function(res) {
     if (t !== tok) return;
     var P = res.data.Page, items = P.media.map(parseAni), from = append ? BR.list.length : 0;
@@ -3493,6 +3525,7 @@ function browse(t, append) {
   }).catch(function(err) {
     if (t !== tok) return;
     if (append) { BR.page--; DS.more.disabled = false; DS.more.textContent = "Load more"; }
+    if (!append) { var gg = document.getElementById("grid"); if (gg) gg.innerHTML = ""; }
     if (c) c.textContent = "Couldn't load titles (" + ((err && err.message) || "error") + ").";
   });
 }
@@ -3599,15 +3632,17 @@ function schCard(x) {
 
 function loadDay() {
   var tk = ++SCH.tok, d = SCH.sel;
-  SCH.stat.textContent = "Loading\u2026"; SCH.grid.innerHTML = ""; SCH.cds = [];
+  SCH.stat.textContent = "Loading\u2026"; SCH.cds = []; skelSch(SCH.grid, 6);
   getDay(d).then(function(list) {
     if (tk !== SCH.tok) return;
     SCH.stat.textContent = list.length ? list.length + " episodes airing" : "Nothing scheduled for this day.";
+    SCH.grid.innerHTML = "";
     var f = document.createDocumentFragment();
     list.forEach(function(x) { f.appendChild(schCard(x)); });
     SCH.grid.appendChild(f); tick();
   }).catch(function(err) {
     if (tk !== SCH.tok) return;
+    SCH.grid.innerHTML = "";
     SCH.stat.textContent = "Couldn't load the schedule (" + ((err && err.message) || "error") + ").";
   });
 }
