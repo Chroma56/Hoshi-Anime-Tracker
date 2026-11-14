@@ -632,6 +632,11 @@ html{overflow-x:clip}
 .libst{margin:2px 0 0;color:var(--mute);font-size:12px}
 .newbadge{position:absolute;left:8px;top:8px;background:#3ddc84;color:#0b0b0c;border-radius:5px;padding:2px 7px;font:800 11px "DM Sans",sans-serif;letter-spacing:.03em}
 @media(max-width:640px){.vsel{font-size:16px}}
+/* Phone header: Profile and Settings share one menu, so the top-right has three controls instead of four */
+.pfmenu{position:fixed;top:calc(56px + env(safe-area-inset-top,0px));right:10px;z-index:660;min-width:150px;padding:6px;border-radius:14px;border:1px solid rgba(255,255,255,.14);background:rgba(16,16,18,.92);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);box-shadow:0 14px 40px rgba(0,0,0,.55);display:grid;gap:2px}
+.pfmenu button{background:none;border:0;color:var(--text);font:inherit;font-weight:700;text-align:left;padding:11px 14px;border-radius:9px;cursor:pointer}
+.pfmenu button:hover,.pfmenu button:focus-visible{background:rgba(255,255,255,.1)}
+@media(max-width:640px){.setbtn{display:none}.hlogo{right:54px}.getapp{right:100px}}
 </style>
 </head>
 <body>
@@ -4288,7 +4293,25 @@ new MutationObserver(function(muts) {
     page.appendChild(veil); foot.querySelector(".pri").focus();
   }
 
-  open.onclick = function() { draw(); page.hidden = false; document.documentElement.style.overflow = "hidden"; page.scrollTop = 0; inner.querySelector(".pfx").focus(); };
+  function openProfiles() { closeMenu(); draw(); page.hidden = false; document.documentElement.style.overflow = "hidden"; page.scrollTop = 0; inner.querySelector(".pfx").focus(); }
+  window.__hoshiProfiles = openProfiles;
+  // On phones, Profile and Settings share one menu behind this button (the separate settings button is hidden there).
+  var menu = mk("div", "pfmenu"); menu.hidden = true; menu.setAttribute("role", "menu");
+  function menuItem(label, fn) { var b = mk("button", "", label); b.type = "button"; b.setAttribute("role", "menuitem"); b.onclick = function() { closeMenu(); fn(); }; menu.appendChild(b); }
+  menuItem("Profile", openProfiles);
+  menuItem("Settings", function() { if (window.__hoshiSettings) window.__hoshiSettings(); });
+  function closeMenu() { menu.hidden = true; open.setAttribute("aria-expanded", "false"); }
+  document.body.appendChild(menu);
+  var phone = window.matchMedia ? matchMedia("(max-width:640px)") : { matches: false };
+  open.onclick = function(e) {
+    if (!phone.matches) { openProfiles(); return; }
+    e.stopPropagation();
+    menu.hidden = !menu.hidden; open.setAttribute("aria-expanded", String(!menu.hidden));
+    if (!menu.hidden) menu.firstChild.focus();
+  };
+  document.addEventListener("click", function(e) { if (!menu.hidden && !menu.contains(e.target)) closeMenu(); });
+  document.addEventListener("keydown", function(e) { if (e.key === "Escape" && !menu.hidden) { closeMenu(); open.focus(); } });
+  window.addEventListener("hashchange", closeMenu);
   page.addEventListener("keydown", function(e) { if (e.key === "Escape") closePage(); });
   // Opening a title from a profile (or any other navigation) puts the page away.
   window.addEventListener("hashchange", function() { if (!page.hidden) closePage(); });
@@ -4404,7 +4427,7 @@ new MutationObserver(function(muts) {
       };
     }
     var backup = mk("div", "setbtns");
-    backup.appendChild(action("Open profiles", false, function() { close(); var b = document.querySelector(".pfbtn"); if (b) b.click(); }));
+    backup.appendChild(action("Open profiles", false, function() { close(); if (window.__hoshiProfiles) window.__hoshiProfiles(); }));
     var clears = mk("div", "setbtns");
     clears.appendChild(action("Clear Continue watching", true, wipe("Continue watching", PROG, saveProg)));
     clears.appendChild(action("Clear reading progress", true, wipe("your reading progress", RP, saveRP)));
