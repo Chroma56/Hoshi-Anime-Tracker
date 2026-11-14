@@ -1336,6 +1336,22 @@ function markNew(pairs) {
     });
   }).catch(function() {});
 }
+// The stream backend tags every subtitle track lang:"en" and only the label tells them apart,
+// so the language code comes from the label. Unknown names become "und" (undetermined), not English.
+var SUB_CODES = [["english","en"],["arabic","ar"],["german","de"],["spanish","es"],["french","fr"],["italian","it"],["polish","pl"],["portuguese","pt"],["russian","ru"],["indonesian","id"],["japanese","ja"],["korean","ko"],["chinese","zh"],["turkish","tr"],["vietnamese","vi"],["thai","th"],["hindi","hi"],["dutch","nl"],["swedish","sv"],["ukrainian","uk"],["czech","cs"],["greek","el"],["hebrew","he"],["romanian","ro"],["hungarian","hu"],["malay","ms"],["filipino","fil"]];
+function subLangCode(label, lang) {
+  var l = String(label || "").toLowerCase(), found = null;
+  SUB_CODES.some(function(c) { if (l.indexOf(c[0]) === 0) { found = c[1]; return true; } return false; });
+  if (found) {
+    if (found === "es") return /latin|latam|419/.test(l) ? "es-419" : /europe|spain/.test(l) ? "es-ES" : "es";
+    if (found === "pt") return /brazil/.test(l) ? "pt-BR" : /europe|portugal/.test(l) ? "pt-PT" : "pt";
+    if (found === "fr") return /canad/.test(l) ? "fr-CA" : "fr";
+    if (found === "zh") return /trad/.test(l) ? "zh-Hant" : /simpl/.test(l) ? "zh-Hans" : "zh";
+    return found;
+  }
+  if (!l || /^(subtitles?|captions?|track\s*\d*)$/.test(l)) return /^[A-Za-z]{2,3}(-[A-Za-z0-9]{2,8})?$/.test(String(lang || "")) ? lang : "und";
+  return "und";
+}
 function decodeEnt(s) {
   s = String(s == null ? "" : s);
   if (s.indexOf("&") < 0) return s;
@@ -1782,7 +1798,7 @@ function detail(a, wantEp) {
   // (see videoCues), so an episode with 39 languages costs one subtitle request, not 39.
   function attachSubtitle(track) {
     if (!activeVideo || !track || !track.url) return;
-    currentSubtitleTracks.push({label: track.label || "Subtitles", lang: track.lang || "en", url: track.url, textTrack: null, element: null});
+    currentSubtitleTracks.push({label: track.label || "Subtitles", lang: subLangCode(track.label, track.lang), url: track.url, textTrack: null, element: null});
   }
   function loadSubtitleTrack(entry) {
     if (!activeVideo || !entry || entry.element) return;
